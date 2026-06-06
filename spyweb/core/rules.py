@@ -1,3 +1,6 @@
+import json
+from hashlib import sha256
+
 from spyweb.core.model import (
     DIRECTION_DELTA,
     Answer,
@@ -8,9 +11,46 @@ from spyweb.core.model import (
     Question,
     QuestionAnswers,
     Rules,
+    Sense,
     SpyAnswer,
     SpyId,
 )
+
+
+def rules_fingerprint(rules: Rules) -> str:
+    record = {
+        "spies": [
+            {
+                "id": int(spy.id),
+                "name": spy.name,
+                "faction": spy.faction.value,
+                "bounty": spy.bounty,
+                "directions": {
+                    sense.name.lower(): [direction.name for direction in spy.directions[sense]]
+                    for sense in Sense
+                },
+            }
+            for spy in rules.spies
+        ],
+        "cities": [
+            {
+                "id": int(city.id),
+                "name": city.name,
+                "coord": [city.coord.row, city.coord.col],
+            }
+            for city in rules.cities
+        ],
+        "landmarks": [
+            {
+                "id": int(landmark.id),
+                "name": landmark.name,
+                "coord": [landmark.coord.row, landmark.coord.col],
+            }
+            for landmark in rules.landmarks
+        ],
+    }
+    encoded = json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
+    return sha256(encoded).hexdigest()
 
 
 def validate_rules(rules: Rules) -> None:

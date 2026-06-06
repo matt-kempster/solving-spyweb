@@ -24,9 +24,10 @@ from spyweb.core.model import (
     SpyAnswer,
     SpyId,
 )
+from spyweb.core.rules import rules_fingerprint
 
 type JsonValue = None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
-TRACE_FORMAT_VERSION = 1
+TRACE_FORMAT_VERSION = 2
 
 
 def _answer_record(answer: Answer) -> dict[str, JsonValue]:
@@ -77,10 +78,11 @@ def _step_record(step: TraceStep) -> dict[str, JsonValue]:
     }
 
 
-def write_trace(trace: Trace, path: Path) -> None:
+def write_trace(trace: Trace, path: Path, rules: Rules) -> None:
     record: dict[str, JsonValue] = {
         "format": "spyweb-trace",
         "version": TRACE_FORMAT_VERSION,
+        "rules_fingerprint": rules_fingerprint(rules),
         "steps": [_step_record(step) for step in trace],
     }
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -179,6 +181,8 @@ def read_trace_events(path: Path, rules: Rules) -> tuple[ObservedEvent, ...]:
         raise ValueError("Not a Spy Web trace")
     if record.get("version") != TRACE_FORMAT_VERSION:
         raise ValueError(f"Unsupported trace version: {record.get('version')}")
+    if record.get("rules_fingerprint") != rules_fingerprint(rules):
+        raise ValueError("Trace was recorded against different rules")
     steps = record.get("steps")
     if not isinstance(steps, list):
         raise ValueError("trace.steps must be an array")

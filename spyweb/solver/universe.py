@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import json
 from collections.abc import Iterator
 from dataclasses import dataclass
-from hashlib import sha256
 from itertools import permutations
 from math import factorial
 from pathlib import Path
@@ -18,51 +16,15 @@ from spyweb.core.model import (
     Direction,
     QuestionId,
     Rules,
-    Sense,
     SpyId,
 )
+from spyweb.core.rules import rules_fingerprint
 from spyweb.solver.encoding import Encoding
 
 UInt8Array = npt.NDArray[np.uint8]
 Int8Array = npt.NDArray[np.int8]
 EMPTY = np.uint8(255)
 CACHE_FORMAT_VERSION = 1
-
-
-def rules_fingerprint(rules: Rules) -> str:
-    record = {
-        "spies": [
-            {
-                "id": int(spy.id),
-                "name": spy.name,
-                "faction": spy.faction.value,
-                "bounty": spy.bounty,
-                "directions": {
-                    sense.name.lower(): [direction.name for direction in spy.directions[sense]]
-                    for sense in Sense
-                },
-            }
-            for spy in rules.spies
-        ],
-        "cities": [
-            {
-                "id": int(city.id),
-                "name": city.name,
-                "coord": [city.coord.row, city.coord.col],
-            }
-            for city in rules.cities
-        ],
-        "landmarks": [
-            {
-                "id": int(landmark.id),
-                "name": landmark.name,
-                "coord": [landmark.coord.row, landmark.coord.col],
-            }
-            for landmark in rules.landmarks
-        ],
-    }
-    encoded = json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
-    return sha256(encoded).hexdigest()
 
 
 @dataclass(frozen=True)

@@ -21,6 +21,7 @@ from spyweb.core.model import (
     Sense,
     SpyAnswer,
 )
+from spyweb.core.rules import rules_fingerprint
 from spyweb.solver.belief import (
     full_belief,
     pair_candidates,
@@ -30,7 +31,7 @@ from spyweb.solver.belief import (
 from spyweb.solver.encoding import Encoding
 from spyweb.solver.policy import recommend_questions
 from spyweb.solver.replay import ReplayState, apply_event
-from spyweb.solver.universe import Universe, build_universe, rules_fingerprint, universe_board_count
+from spyweb.solver.universe import Universe, build_universe, universe_board_count
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -215,7 +216,7 @@ def run(argv: Sequence[str] | None = None) -> None:
                 history.pop()
                 state = history[-1]
                 if args.trace_out is not None:
-                    write_trace(state.trace, args.trace_out)
+                    write_trace(state.trace, args.trace_out, FIXTURE_RULES)
                 print("Undid last event")
             else:
                 print("Nothing to undo")
@@ -253,7 +254,7 @@ def run(argv: Sequence[str] | None = None) -> None:
         state = next_state
         history.append(state)
         if args.trace_out is not None:
-            write_trace(state.trace, args.trace_out)
+            write_trace(state.trace, args.trace_out, FIXTURE_RULES)
         print(f"Recorded {type(event).__name__}")
 
 

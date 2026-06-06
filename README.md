@@ -42,8 +42,9 @@ Resume by replaying a saved trace:
 uv run spyweb --boards 50000 --trace-in game.json --trace-out game.json
 ```
 
-Universe caches include a rules fingerprint and board count. The solver rejects
-stale or differently sized caches instead of silently using incompatible data.
+Universe caches and audit traces include a rules fingerprint. The solver rejects
+stale, differently sized, or incompatible data instead of silently mixing card
+transcriptions.
 
 Enable bounded adversarial lookahead once the belief is small enough:
 

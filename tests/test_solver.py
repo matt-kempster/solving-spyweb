@@ -5,7 +5,7 @@ import pytest
 from spyweb.core.catalog import FIXTURE_RULES
 from spyweb.core.events import QuestionAnswered
 from spyweb.core.model import LandmarkAnswer, Question, QuestionId, Sense, SpyId
-from spyweb.core.rules import answer_question, validate_board
+from spyweb.core.rules import answer_question, rules_fingerprint, validate_board
 from spyweb.solver.belief import (
     full_belief,
     pair_candidates,
@@ -16,7 +16,7 @@ from spyweb.solver.belief import (
 from spyweb.solver.encoding import Encoding
 from spyweb.solver.policy import recommend_questions
 from spyweb.solver.replay import ReplayState, apply_event
-from spyweb.solver.universe import Universe, build_universe, rules_fingerprint
+from spyweb.solver.universe import Universe, build_universe
 
 
 def test_scores_replays_and_round_trips_cache(tmp_path: Path) -> None:
