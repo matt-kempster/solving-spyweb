@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import numpy.typing as npt
 
-from spyweb.core.model import DIRECTION_DELTA, Direction, QuestionId, Rules
+from spyweb.core.model import DIRECTION_DELTA, Board, CityId, Direction, QuestionId, Rules, SpyId
 from spyweb.solver.encoding import Encoding
 
 UInt8Array = npt.NDArray[np.uint8]
@@ -33,6 +33,19 @@ class Universe:
     @property
     def city_count(self) -> int:
         return int(self.occupant_by_city.shape[1])
+
+    def board(self, index: int) -> Board:
+        if index < 0 or index >= self.board_count:
+            raise IndexError(f"Board index out of range: {index}")
+        occupants = tuple(
+            None if occupant == EMPTY else SpyId(int(occupant))
+            for occupant in self.occupant_by_city[index]
+        )
+        return Board(
+            SpyId(int(self.ringleader[index])),
+            CityId(int(self.hideout[index])),
+            occupants,
+        )
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
