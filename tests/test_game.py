@@ -2,12 +2,28 @@ from spyweb.core.catalog import BIRD_RULES, SEA_RULES
 from spyweb.core.game import (
     Accusation,
     AskedQuestion,
+    BoughtExtraAction,
+    BoughtSecondAnswer,
+    TurnPhase,
     accuse,
     ask_question,
+    buy_extra_action,
+    buy_second_answer,
+    decline_second_answer,
+    end_turn,
     legal_questions,
     new_game,
 )
+from spyweb.core.model import Direction, Sense
 from spyweb.core.rules import validate_board
+
+
+def test_dual_point_directions_match_transcription() -> None:
+    raven = next(spy for spy in BIRD_RULES.spies if spy.name == "Raven")
+    urchin = next(spy for spy in SEA_RULES.spies if spy.name == "Urchin")
+
+    assert raven.directions[Sense.POINT] == (Direction.N, Direction.S)
+    assert urchin.directions[Sense.POINT] == (Direction.E, Direction.W)
 
 
 def test_new_game_is_reproducible_and_boards_are_valid() -> None:
@@ -19,17 +35,21 @@ def test_new_game_is_reproducible_and_boards_are_valid() -> None:
     validate_board(SEA_RULES, first.players[1].board)
 
 
-def test_asking_resolves_against_opponent_and_passes_turn() -> None:
+def test_asking_resolves_against_opponent_then_player_ends_turn() -> None:
     state = new_game("Bird", BIRD_RULES, "Sea", SEA_RULES, seed=7)
     question = legal_questions(SEA_RULES)[0]
 
     next_state = ask_question(state, question)
 
-    assert next_state.turn == 1
+    assert next_state.turn == 0
+    assert next_state.phase is TurnPhase.POST_ACTION
     assert isinstance(next_state.history[-1], AskedQuestion)
+    passed = end_turn(next_state)
+    assert passed.turn == 1
+    assert passed.phase is TurnPhase.ACTION
 
 
-def test_correct_accusation_wins_and_wrong_accusation_passes() -> None:
+def test_correct_accusation_wins_and_wrong_accusation_allows_continuation() -> None:
     state = new_game("Bird", BIRD_RULES, "Sea", SEA_RULES, seed=9)
     target = state.opponent.board
 
@@ -40,4 +60,41 @@ def test_correct_accusation_wins_and_wrong_accusation_passes() -> None:
     wrong_ringleader = SEA_RULES.spies[(int(target.ringleader) + 1) % len(SEA_RULES.spies)].id
     missed = accuse(state, wrong_ringleader, target.hideout)
     assert missed.winner is None
-    assert missed.turn == 1
+    assert missed.turn == 0
+    assert missed.phase is TurnPhase.POST_ACTION
+
+
+def test_paid_extra_action_transfers_money_and_preserves_turn() -> None:
+    state = new_game("Bird", BIRD_RULES, "Sea", SEA_RULES, seed=7)
+    acted = ask_question(state, legal_questions(SEA_RULES)[0])
+
+    continued = buy_extra_action(acted)
+
+    assert continued.turn == 0
+    assert continued.phase is TurnPhase.ACTION
+    assert continued.players[0].money == 200_000
+    assert continued.players[1].money == 400_000
+    assert isinstance(continued.history[-1], BoughtExtraAction)
+
+
+def test_urchin_second_point_answer_can_be_bought_or_declined() -> None:
+    state = new_game("Bird", BIRD_RULES, "Sea", SEA_RULES, seed=7)
+    urchin_point = next(
+        question
+        for question in legal_questions(SEA_RULES)
+        if SEA_RULES.spies[int(question.spy)].name == "Urchin" and question.sense.name == "POINT"
+    )
+
+    asked = ask_question(state, urchin_point, first_answer_index=1)
+    assert asked.phase is TurnPhase.DUAL_SECOND_ANSWER
+    assert asked.pending_second is not None
+
+    bought = buy_second_answer(asked)
+    assert bought.phase is TurnPhase.POST_ACTION
+    assert bought.players[0].money == 200_000
+    assert bought.players[1].money == 400_000
+    assert isinstance(bought.history[-1], BoughtSecondAnswer)
+
+    declined = decline_second_answer(asked)
+    assert declined.phase is TurnPhase.POST_ACTION
+    assert declined.players == asked.players

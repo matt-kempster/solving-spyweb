@@ -27,7 +27,28 @@ uv run spyweb-play
 
 The emulator generates both private boards, shows the current player's board,
 lists legal questions by number, resolves answers automatically, supports
-accusations, and clears the terminal before passing turns.
+accusations, and clears the terminal before passing turns. Raven points north
+and south; Urchin points east and west. The responding player chooses which
+truthful answer to reveal first, and the asker may pay `$100,000` for the other
+answer. After any action, the active player may transfer `$100,000` to the
+opponent to take another action.
+
+Starting money defaults to `$300,000` per player and is configurable:
+
+```bash
+uv run spyweb-play --starting-money 500000
+```
+
+Play Bird against the solver-driven Sea AI:
+
+```bash
+uv run spyweb-play --ai
+```
+
+The first AI game builds and caches an exact `3,265,920`-board Bird knowledge
+base at `.cache/play-ai-bird.npz`. Later games load that cache. During play,
+the emulator displays the opponent faction's look/hear/point directions and
+both players' accumulated observation knowledge bases.
 
 Use a representative development sample:
 

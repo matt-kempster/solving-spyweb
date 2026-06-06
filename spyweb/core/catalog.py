@@ -3,6 +3,7 @@ from spyweb.core.model import (
     CityId,
     Coord,
     Direction,
+    Directions,
     Faction,
     Landmark,
     LandmarkId,
@@ -38,39 +39,36 @@ LANDMARKS: tuple[Landmark, ...] = (
 type CardData = tuple[
     str,
     int,
-    Direction | None,
-    Direction | None,
-    Direction | None,
+    Directions,
+    Directions,
+    Directions,
 ]
 
-# Transcribed from the supplied raw card data. None means the spy lacks that sense.
+# Transcribed from the supplied raw card data. An empty tuple means the spy lacks
+# that sense; Raven and Urchin have two point directions.
 _BIRD_DATA: tuple[CardData, ...] = (
-    ("Raven", 300_000, Direction.W, None, Direction.N),
-    ("Buzzard", 300_000, None, None, Direction.N),
-    ("Hawk", 100_000, Direction.W, None, Direction.S),
-    ("Vulture", 300_000, Direction.W, Direction.E, Direction.N),
-    ("Osprey", 200_000, Direction.E, Direction.W, Direction.S),
-    ("Eagle", 400_000, Direction.E, None, Direction.NW),
-    ("Condor", 500_000, Direction.E, None, Direction.W),
-    ("Falcon", 400_000, None, Direction.W, Direction.S),
-    ("Crow", 300_000, Direction.W, Direction.E, Direction.S),
+    ("Raven", 300_000, (Direction.W,), (), (Direction.N, Direction.S)),
+    ("Buzzard", 300_000, (), (), (Direction.N,)),
+    ("Hawk", 100_000, (Direction.W,), (), (Direction.S,)),
+    ("Vulture", 300_000, (Direction.W,), (Direction.E,), (Direction.N,)),
+    ("Osprey", 200_000, (Direction.E,), (Direction.W,), (Direction.S,)),
+    ("Eagle", 400_000, (Direction.E,), (), (Direction.NW,)),
+    ("Condor", 500_000, (Direction.E,), (), (Direction.W,)),
+    ("Falcon", 400_000, (), (Direction.W,), (Direction.S,)),
+    ("Crow", 300_000, (Direction.W,), (Direction.E,), (Direction.S,)),
 )
 
 _SEA_DATA: tuple[CardData, ...] = (
-    ("Stingray", 500_000, Direction.E, Direction.W, Direction.N),
-    ("Urchin", 200_000, Direction.N, None, Direction.E),
-    ("Marlin", 100_000, Direction.E, None, Direction.W),
-    ("Piranha", 300_000, Direction.W, Direction.E, Direction.S),
-    ("Orca", 300_000, Direction.W, None, Direction.S),
-    ("Eel", 400_000, None, None, Direction.S),
-    ("Shark", 300_000, Direction.W, Direction.E, Direction.N),
-    ("Beluga", 300_000, Direction.W, None, None),
-    ("Leech", 400_000, None, Direction.W, Direction.N),
+    ("Stingray", 500_000, (Direction.E,), (Direction.W,), (Direction.N,)),
+    ("Urchin", 200_000, (Direction.N,), (), (Direction.E, Direction.W)),
+    ("Marlin", 100_000, (Direction.E,), (), (Direction.W,)),
+    ("Piranha", 300_000, (Direction.W,), (Direction.E,), (Direction.S,)),
+    ("Orca", 300_000, (Direction.W,), (), (Direction.S,)),
+    ("Eel", 400_000, (), (), (Direction.S,)),
+    ("Shark", 300_000, (Direction.W,), (Direction.E,), (Direction.N,)),
+    ("Beluga", 300_000, (Direction.W,), (), ()),
+    ("Leech", 400_000, (), (Direction.W,), (Direction.N,)),
 )
-
-
-def _directions(direction: Direction | None) -> tuple[()] | tuple[Direction]:
-    return () if direction is None else (direction,)
 
 
 def _spies(faction: Faction, data: tuple[CardData, ...]) -> tuple[Spy, ...]:
@@ -81,9 +79,9 @@ def _spies(faction: Faction, data: tuple[CardData, ...]) -> tuple[Spy, ...]:
             faction,
             bounty,
             {
-                Sense.LOOK: _directions(look),
-                Sense.HEAR: _directions(hear),
-                Sense.POINT: _directions(point),
+                Sense.LOOK: look,
+                Sense.HEAR: hear,
+                Sense.POINT: point,
             },
         )
         for index, (name, bounty, look, hear, point) in enumerate(data)

@@ -3,18 +3,59 @@ from __future__ import annotations
 import argparse
 import os
 from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
 
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
 from spyweb.core.game import (
+    ACTION_COST,
+    DEFAULT_STARTING_MONEY,
     Accusation,
     AskedQuestion,
+    BoughtExtraAction,
+    BoughtSecondAnswer,
+    EndedTurn,
     GameState,
+    TurnPhase,
     accuse,
     ask_question,
+    buy_extra_action,
+    buy_second_answer,
+    decline_second_answer,
+    end_turn,
     legal_questions,
     new_game,
 )
-from spyweb.core.model import Answer, LandmarkAnswer, NothingAnswer, Rules, SpyAnswer
+from spyweb.core.model import (
+    Answer,
+    Direction,
+    LandmarkAnswer,
+    NothingAnswer,
+    Question,
+    Rules,
+    Sense,
+    SpyAnswer,
+)
+from spyweb.core.rules import answer_question, rules_fingerprint
+from spyweb.solver.belief import (
+    Belief,
+    filter_first_answer,
+    filter_paid_second,
+    full_belief,
+    pair_candidates,
+    pair_count,
+    score_dual_payment,
+)
+from spyweb.solver.encoding import Encoding
+from spyweb.solver.policy import recommend_questions
+from spyweb.solver.universe import Universe, build_universe, universe_board_count
+
+
+@dataclass(frozen=True)
+class AiKnowledge:
+    universe: Universe
+    encoding: Encoding
+    belief: Belief
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -22,6 +63,19 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--seed", type=int, help="reproducible random setup")
     parser.add_argument(
         "--no-clear", action="store_true", help="do not clear between private turns"
+    )
+    parser.add_argument(
+        "--starting-money",
+        type=int,
+        default=DEFAULT_STARTING_MONEY,
+        help=f"starting money per player (default: {DEFAULT_STARTING_MONEY})",
+    )
+    parser.add_argument("--ai", action="store_true", help="play Bird against a Sea AI")
+    parser.add_argument(
+        "--ai-cache",
+        type=Path,
+        default=Path(".cache/play-ai-bird.npz"),
+        help="cache for the AI's exact Bird-board universe",
     )
     return parser.parse_args(argv)
 
@@ -38,6 +92,39 @@ def _answer_label(rules: Rules, answer: Answer) -> str:
     if isinstance(answer, LandmarkAnswer):
         return rules.landmarks[int(answer.landmark)].name
     raise TypeError(answer)
+
+
+def _direction_label(directions: tuple[()] | tuple[Direction] | tuple[Direction, Direction]) -> str:
+    return "-" if not directions else "/".join(direction.name for direction in directions)
+
+
+def _card_lines(rules: Rules) -> tuple[str, ...]:
+    return tuple(
+        f"  {spy.name:9} look {_direction_label(spy.directions[Sense.LOOK]):3}  "
+        f"hear {_direction_label(spy.directions[Sense.HEAR]):3}  "
+        f"point {_direction_label(spy.directions[Sense.POINT]):3}"
+        for spy in rules.spies
+    )
+
+
+def _knowledge_lines(state: GameState, player: int) -> tuple[str, ...]:
+    lines: list[str] = []
+    target_rules = state.players[1 - player].rules
+    for event in state.history:
+        if isinstance(event, AskedQuestion) and event.asker == player:
+            spy = target_rules.spies[int(event.question.spy)].name
+            lines.append(
+                f"  {spy} {event.question.sense.name.lower()} -> "
+                f"{_answer_label(target_rules, event.answer)}"
+            )
+        elif isinstance(event, BoughtSecondAnswer) and event.asker == player:
+            spy = target_rules.spies[int(event.question.spy)].name
+            lines.append(f"  {spy} second direction -> {_answer_label(target_rules, event.answer)}")
+        elif isinstance(event, Accusation) and event.accuser == player:
+            spy = target_rules.spies[int(event.ringleader)].name
+            city = target_rules.cities[int(event.hideout)].name
+            lines.append(f"  Accused {spy} in {city} -> {'correct' if event.correct else 'wrong'}")
+    return tuple(lines) or ("  No observations yet.",)
 
 
 def _board_lines(rules: Rules, state: GameState) -> tuple[str, ...]:
@@ -59,12 +146,25 @@ def _board_lines(rules: Rules, state: GameState) -> tuple[str, ...]:
     return tuple(rows)
 
 
-def _show_private_turn(state: GameState) -> None:
+def _show_private_turn(state: GameState, ai_knowledge: AiKnowledge | None = None) -> None:
     actor = state.actor
     print(f"{actor.name}'s turn ({actor.rules.spies[0].faction.value.title()})")
+    print(f"Money: you ${actor.money:,} | {state.opponent.name} ${state.opponent.money:,}")
     print(f"Your hidden ringleader: {actor.rules.spies[int(actor.board.ringleader)].name}")
     print(f"Your hideout: {actor.rules.cities[int(actor.board.hideout)].name}\n")
     print("\n".join(_board_lines(actor.rules, state)))
+    print(f"\n{state.opponent.name}'s card directions:")
+    print("\n".join(_card_lines(state.opponent.rules)))
+    print("\nYour knowledge base:")
+    print("\n".join(_knowledge_lines(state, state.turn)))
+    print(f"\n{state.opponent.name}'s knowledge base:")
+    print("\n".join(_knowledge_lines(state, 1 - state.turn)))
+    if ai_knowledge is not None:
+        print(
+            f"\nAI solver state: {ai_knowledge.belief.size:,} possible boards, "
+            f"{pair_count(ai_knowledge.universe, ai_knowledge.belief)} "
+            "possible ringleader/hideout pairs"
+        )
     if state.history:
         event = state.history[-1]
         if isinstance(event, AskedQuestion):
@@ -79,6 +179,15 @@ def _show_private_turn(state: GameState) -> None:
         elif isinstance(event, Accusation):
             accuser = state.players[event.accuser]
             print(f"\nLast action: {accuser.name}'s accusation was incorrect")
+        elif isinstance(event, BoughtSecondAnswer):
+            asker = state.players[event.asker]
+            print(f"\nLast action: {asker.name} bought a second direction answer")
+        elif isinstance(event, BoughtExtraAction):
+            actor = state.players[event.actor]
+            print(f"\nLast action: {actor.name} paid for another action")
+        elif isinstance(event, EndedTurn):
+            actor = state.players[event.actor]
+            print(f"\nLast action: {actor.name} ended their turn")
 
 
 def _number(prompt: str, maximum: int) -> int:
@@ -89,7 +198,13 @@ def _number(prompt: str, maximum: int) -> int:
     return value - 1
 
 
-def _ask(state: GameState) -> GameState:
+def _handoff(message: str, *, no_clear: bool) -> None:
+    input(f"\n{message} Press Enter when ready...")
+    if not no_clear:
+        _clear()
+
+
+def _ask(state: GameState, *, no_clear: bool, ai_opponent: bool) -> GameState:
     opponent = state.opponent
     questions = legal_questions(opponent.rules)
     print(f"\nQuestions for {opponent.name}:")
@@ -97,12 +212,133 @@ def _ask(state: GameState) -> GameState:
         spy = opponent.rules.spies[int(question.spy)]
         print(f"  {index:2}. {spy.name} {question.sense.name.lower()}")
     question = questions[_number("Question number: ", len(questions))]
-    next_state = ask_question(state, question)
+    answers = answer_question(opponent.rules, opponent.board, question)
+    first_answer_index = 0
+    if len(answers) == 2:
+        if ai_opponent:
+            first_answer_index = 0
+            print(f"{opponent.name} chooses which direction to reveal first.")
+        else:
+            _handoff(f"Pass the terminal to {opponent.name}.", no_clear=no_clear)
+            spy = opponent.rules.spies[int(question.spy)]
+            print(f"{state.actor.name} asked what {spy.name} points at.")
+            print("Choose which truthful answer to reveal first:")
+            for index, answer in enumerate(answers, start=1):
+                print(f"  {index}. {_answer_label(opponent.rules, answer)}")
+            first_answer_index = _number("First answer number: ", 2)
+            _handoff(f"Pass the terminal back to {state.actor.name}.", no_clear=no_clear)
+
+    next_state = ask_question(state, question, first_answer_index=first_answer_index)
     event = next_state.history[-1]
     assert isinstance(event, AskedQuestion)
     print(f"Answer: {_answer_label(opponent.rules, event.answer)}")
-    input("\nPress Enter to pass the terminal...")
     return next_state
+
+
+def _load_ai_knowledge(cache: Path) -> AiKnowledge:
+    rules = BIRD_RULES
+    encoding = Encoding(rules)
+    expected = universe_board_count(rules)
+    if cache.exists():
+        print(f"Loading AI knowledge from {cache}...")
+        universe = Universe.load(
+            cache,
+            expected_rules_fingerprint=rules_fingerprint(rules),
+            expected_board_count=expected,
+        )
+    else:
+        print(f"Building the AI's {expected:,}-board knowledge base...")
+        universe = build_universe(rules, encoding)
+        universe.save(cache)
+        print(f"Cached AI knowledge at {cache}")
+    return AiKnowledge(universe, encoding, full_belief(universe))
+
+
+def _ai_observe_first(knowledge: AiKnowledge, question: Question, answer: Answer) -> AiKnowledge:
+    belief = filter_first_answer(
+        knowledge.universe,
+        knowledge.belief,
+        knowledge.encoding.question_id(question),
+        knowledge.encoding.answer_code(answer),
+    )
+    return AiKnowledge(knowledge.universe, knowledge.encoding, belief)
+
+
+def _ai_observe_second(
+    knowledge: AiKnowledge, question: Question, first: Answer, second: Answer
+) -> AiKnowledge:
+    belief = filter_paid_second(
+        knowledge.universe,
+        knowledge.belief,
+        knowledge.encoding.question_id(question),
+        knowledge.encoding.answer_code(first),
+        knowledge.encoding.answer_code(second),
+    )
+    return AiKnowledge(knowledge.universe, knowledge.encoding, belief)
+
+
+def _ai_action(state: GameState, knowledge: AiKnowledge) -> tuple[GameState, AiKnowledge]:
+    candidates = pair_candidates(knowledge.universe, knowledge.belief)
+    if len(candidates) == 1:
+        candidate = candidates[0]
+        print(
+            f"\n{state.actor.name} accuses "
+            f"{BIRD_RULES.spies[candidate.ringleader].name} in "
+            f"{BIRD_RULES.cities[candidate.hideout].name}."
+        )
+        return (
+            accuse(
+                state,
+                BIRD_RULES.spies[candidate.ringleader].id,
+                BIRD_RULES.cities[candidate.hideout].id,
+            ),
+            knowledge,
+        )
+
+    recommendation = recommend_questions(knowledge.universe, knowledge.belief)
+    question = knowledge.encoding.decode_question(recommendation.best.immediate.question)
+    spy = BIRD_RULES.spies[int(question.spy)]
+    print(f"\n{state.actor.name} asks: What does {spy.name} {question.sense.name.lower()} at?")
+    answers = answer_question(BIRD_RULES, state.opponent.board, question)
+    first_index = 0
+    if len(answers) == 2:
+        print("Choose which truthful answer to reveal first:")
+        for index, answer in enumerate(answers, start=1):
+            print(f"  {index}. {_answer_label(BIRD_RULES, answer)}")
+        first_index = _number("First answer number: ", 2)
+    first = answers[first_index]
+    print(f"You answer: {_answer_label(BIRD_RULES, first)}")
+    next_state = ask_question(state, question, first_answer_index=first_index)
+    return next_state, _ai_observe_first(knowledge, question, first)
+
+
+def _ai_resolve_second(state: GameState, knowledge: AiKnowledge) -> tuple[GameState, AiKnowledge]:
+    pending = state.pending_second
+    assert pending is not None
+    event = state.history[-1]
+    assert isinstance(event, AskedQuestion)
+    qid = knowledge.encoding.question_id(pending.question)
+    first_code = knowledge.encoding.answer_code(event.answer)
+    option = next(
+        option
+        for option in score_dual_payment(knowledge.universe, knowledge.belief, qid)
+        if option.first == first_code
+    )
+    should_buy = state.actor.money >= ACTION_COST and option.paid_worst_pairs < option.no_pay_pairs
+    if not should_buy:
+        print(f"{state.actor.name} declines the second answer.")
+        return decline_second_answer(state), knowledge
+    next_state = buy_second_answer(state)
+    second_event = next_state.history[-1]
+    assert isinstance(second_event, BoughtSecondAnswer)
+    print(
+        f"{state.actor.name} pays ${ACTION_COST:,}; second answer: "
+        f"{_answer_label(BIRD_RULES, second_event.answer)}"
+    )
+    return (
+        next_state,
+        _ai_observe_second(knowledge, pending.question, event.answer, second_event.answer),
+    )
 
 
 def _accuse(state: GameState) -> GameState:
@@ -119,27 +355,87 @@ def _accuse(state: GameState) -> GameState:
     event = next_state.history[-1]
     assert isinstance(event, Accusation)
     print("Correct!" if event.correct else "Incorrect.")
-    if not event.correct:
-        input("\nPress Enter to pass the terminal...")
+    return next_state
+
+
+def _resolve_second_answer(state: GameState) -> GameState:
+    pending = state.pending_second
+    assert pending is not None
+    if state.actor.money < ACTION_COST:
+        print(f"You cannot afford the ${ACTION_COST:,} second answer.")
+        return decline_second_answer(state)
+    command = (
+        input(f"Pay ${ACTION_COST:,} for the second direction answer? [y/N]: ").strip().lower()
+    )
+    if command != "y":
+        return decline_second_answer(state)
+    next_state = buy_second_answer(state)
+    event = next_state.history[-1]
+    assert isinstance(event, BoughtSecondAnswer)
+    print(f"Second answer: {_answer_label(state.opponent.rules, event.answer)}")
+    return next_state
+
+
+def _post_action(state: GameState, *, no_clear: bool, ai_game: bool) -> GameState:
+    if state.winner is not None:
+        return state
+    if state.actor.money >= ACTION_COST:
+        command = (
+            input(
+                f"\nPay ${ACTION_COST:,} to take another action? "
+                f"(you have ${state.actor.money:,}) [y/N]: "
+            )
+            .strip()
+            .lower()
+        )
+        if command == "y":
+            return buy_extra_action(state)
+    next_state = end_turn(state)
+    if not ai_game:
+        _handoff(f"Pass the terminal to {next_state.actor.name}.", no_clear=no_clear)
     return next_state
 
 
 def run(argv: Sequence[str] | None = None) -> None:
     args = _parse_args(argv)
     first = input("Bird player name [Bird]: ").strip() or "Bird"
-    second = input("Sea player name [Sea]: ").strip() or "Sea"
-    state = new_game(first, BIRD_RULES, second, SEA_RULES, seed=args.seed)
+    second = "Sea AI" if args.ai else input("Sea player name [Sea]: ").strip() or "Sea"
+    ai_knowledge = _load_ai_knowledge(args.ai_cache) if args.ai else None
+    state = new_game(
+        first,
+        BIRD_RULES,
+        second,
+        SEA_RULES,
+        seed=args.seed,
+        starting_money=args.starting_money,
+    )
     while state.winner is None:
-        if not args.no_clear:
-            _clear()
-        input(f"{state.actor.name}, press Enter when only you can see the terminal...")
-        if not args.no_clear:
-            _clear()
-        _show_private_turn(state)
+        ai_turn = ai_knowledge is not None and state.turn == 1
+        if state.phase is TurnPhase.DUAL_SECOND_ANSWER:
+            if ai_turn:
+                assert ai_knowledge is not None
+                state, ai_knowledge = _ai_resolve_second(state, ai_knowledge)
+            else:
+                state = _resolve_second_answer(state)
+            continue
+        if state.phase is TurnPhase.POST_ACTION:
+            if ai_turn:
+                state = end_turn(state)
+            else:
+                state = _post_action(state, no_clear=args.no_clear, ai_game=args.ai)
+            continue
+        if ai_turn:
+            assert ai_knowledge is not None
+            state, ai_knowledge = _ai_action(state, ai_knowledge)
+            continue
+        _handoff(
+            f"{state.actor.name}, make sure only you can see the terminal.", no_clear=args.no_clear
+        )
+        _show_private_turn(state, ai_knowledge)
         command = input("\n[a]sk, a[c]cuse, [q]uit: ").strip().lower()
         try:
             if command == "a":
-                state = _ask(state)
+                state = _ask(state, no_clear=args.no_clear, ai_opponent=args.ai)
             elif command == "c":
                 state = _accuse(state)
             elif command == "q":
