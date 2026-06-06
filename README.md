@@ -33,7 +33,13 @@ truthful answer to reveal first, and the asker may pay `$100,000` for the other
 answer. After any action, the active player may transfer `$100,000` to the
 opponent to take another action.
 
-Starting money defaults to `$300,000` per player and is configurable:
+The emulator plays the official multi-round campaign. Each player starts with
+`$100,000`; correct accusations earn the captured leader's printed bounty; the
+loser starts the next round; and both players collect a `$100,000` salary before
+that round. The campaign ends after a round when a player has at least
+`$1,000,000`. If both qualify, higher cash wins; a tie triggers another round.
+
+Starting money is configurable for testing:
 
 ```bash
 uv run spyweb-play --starting-money 500000

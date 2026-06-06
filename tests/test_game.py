@@ -1,18 +1,25 @@
+from dataclasses import replace
+
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
 from spyweb.core.game import (
+    CAMPAIGN_TARGET,
+    ROUND_SALARY,
     Accusation,
     AskedQuestion,
     BoughtExtraAction,
     BoughtSecondAnswer,
+    CampaignState,
     TurnPhase,
     accuse,
     ask_question,
     buy_extra_action,
     buy_second_answer,
+    campaign_winner,
     decline_second_answer,
     end_turn,
     legal_questions,
     new_game,
+    next_campaign_round,
 )
 from spyweb.core.model import Direction, Sense
 from spyweb.core.rules import validate_board
@@ -72,8 +79,8 @@ def test_paid_extra_action_transfers_money_and_preserves_turn() -> None:
 
     assert continued.turn == 0
     assert continued.phase is TurnPhase.ACTION
-    assert continued.players[0].money == 200_000
-    assert continued.players[1].money == 400_000
+    assert continued.players[0].money == 0
+    assert continued.players[1].money == 200_000
     assert isinstance(continued.history[-1], BoughtExtraAction)
 
 
@@ -91,10 +98,55 @@ def test_urchin_second_point_answer_can_be_bought_or_declined() -> None:
 
     bought = buy_second_answer(asked)
     assert bought.phase is TurnPhase.POST_ACTION
-    assert bought.players[0].money == 200_000
-    assert bought.players[1].money == 400_000
+    assert bought.players[0].money == 0
+    assert bought.players[1].money == 200_000
     assert isinstance(bought.history[-1], BoughtSecondAnswer)
 
     declined = decline_second_answer(asked)
     assert declined.phase is TurnPhase.POST_ACTION
     assert declined.players == asked.players
+
+
+def test_correct_accusation_awards_ringleader_bounty() -> None:
+    state = new_game("Bird", BIRD_RULES, "Sea", SEA_RULES, seed=9)
+    target = state.opponent.board
+    bounty = state.opponent.rules.spies[int(target.ringleader)].bounty
+
+    won = accuse(state, target.ringleader, target.hideout)
+
+    assert won.actor.money == 100_000 + bounty
+
+
+def test_next_campaign_round_pays_salary_and_loser_starts() -> None:
+    state = new_game("Bird", BIRD_RULES, "Sea", SEA_RULES, seed=9)
+    target = state.opponent.board
+    won = accuse(state, target.ringleader, target.hideout)
+
+    campaign = next_campaign_round(CampaignState(won))
+
+    assert campaign.round_number == 2
+    assert campaign.round.turn == 1
+    assert campaign.round.players[0].money == won.players[0].money + ROUND_SALARY
+    assert campaign.round.players[1].money == won.players[1].money + ROUND_SALARY
+
+
+def test_campaign_ends_at_round_end_by_money_or_continues_on_tie() -> None:
+    state = new_game("Bird", BIRD_RULES, "Sea", SEA_RULES, seed=9)
+    ended = replace(
+        state,
+        players=(
+            replace(state.players[0], money=CAMPAIGN_TARGET),
+            state.players[1],
+        ),
+        winner=0,
+    )
+    assert campaign_winner(ended) == 0
+
+    tied = replace(
+        ended,
+        players=(
+            replace(ended.players[0], money=CAMPAIGN_TARGET),
+            replace(ended.players[1], money=CAMPAIGN_TARGET),
+        ),
+    )
+    assert campaign_winner(tied) is None

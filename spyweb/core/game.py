@@ -8,7 +8,9 @@ from spyweb.core.model import Answer, Board, CityId, Question, Rules, Sense, Spy
 from spyweb.core.rules import answer_question, validate_board
 
 ACTION_COST = 100_000
-DEFAULT_STARTING_MONEY = 300_000
+DEFAULT_STARTING_MONEY = 100_000
+ROUND_SALARY = 100_000
+CAMPAIGN_TARGET = 1_000_000
 
 
 class TurnPhase(StrEnum):
@@ -85,6 +87,13 @@ class GameState:
     @property
     def opponent(self) -> PlayerState:
         return self.players[1 - self.turn]
+
+
+@dataclass(frozen=True)
+class CampaignState:
+    round: GameState
+    round_number: int = 1
+    winner: int | None = None
 
 
 def random_board(rules: Rules, random: Random) -> Board:
@@ -193,8 +202,14 @@ def accuse(state: GameState, ringleader: SpyId, hideout: CityId) -> GameState:
     board = state.opponent.board
     correct = board.ringleader == ringleader and board.hideout == hideout
     event = Accusation(state.turn, ringleader, hideout, correct)
+    players = state.players
+    if correct:
+        bounty = state.opponent.rules.spies[int(board.ringleader)].bounty
+        awarded = replace(state.actor, money=state.actor.money + bounty)
+        players = (awarded, state.opponent) if state.turn == 0 else (state.opponent, awarded)
     return replace(
         state,
+        players=players,
         phase=TurnPhase.POST_ACTION,
         winner=state.turn if correct else None,
         history=(*state.history, event),
@@ -227,4 +242,51 @@ def end_turn(state: GameState) -> GameState:
         turn=1 - state.turn,
         phase=TurnPhase.ACTION,
         history=(*state.history, event),
+    )
+
+
+def new_campaign(
+    first_name: str,
+    first_rules: Rules,
+    second_name: str,
+    second_rules: Rules,
+    *,
+    seed: int | None = None,
+) -> CampaignState:
+    return CampaignState(new_game(first_name, first_rules, second_name, second_rules, seed=seed))
+
+
+def campaign_winner(state: GameState) -> int | None:
+    if state.winner is None:
+        raise ValueError("Campaign winner can only be checked at round end")
+    first_money, second_money = (player.money for player in state.players)
+    if first_money < CAMPAIGN_TARGET and second_money < CAMPAIGN_TARGET:
+        return None
+    if first_money == second_money:
+        return None
+    return 0 if first_money > second_money else 1
+
+
+def next_campaign_round(campaign: CampaignState, *, seed: int | None = None) -> CampaignState:
+    state = campaign.round
+    if state.winner is None:
+        raise ValueError("Cannot start another round before this round is won")
+    winner = campaign_winner(state)
+    if winner is not None:
+        return replace(campaign, winner=winner)
+    loser = 1 - state.winner
+    random = Random(seed)
+    first = replace(
+        state.players[0],
+        board=random_board(state.players[0].rules, random),
+        money=state.players[0].money + ROUND_SALARY,
+    )
+    second = replace(
+        state.players[1],
+        board=random_board(state.players[1].rules, random),
+        money=state.players[1].money + ROUND_SALARY,
+    )
+    return CampaignState(
+        GameState((first, second), turn=loser),
+        round_number=campaign.round_number + 1,
     )

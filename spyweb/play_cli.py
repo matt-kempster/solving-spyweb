@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
@@ -14,6 +14,7 @@ from spyweb.core.game import (
     AskedQuestion,
     BoughtExtraAction,
     BoughtSecondAnswer,
+    CampaignState,
     EndedTurn,
     GameState,
     TurnPhase,
@@ -25,6 +26,7 @@ from spyweb.core.game import (
     end_turn,
     legal_questions,
     new_game,
+    next_campaign_round,
 )
 from spyweb.core.model import (
     Answer,
@@ -409,42 +411,57 @@ def run(argv: Sequence[str] | None = None) -> None:
         seed=args.seed,
         starting_money=args.starting_money,
     )
-    while state.winner is None:
-        ai_turn = ai_knowledge is not None and state.turn == 1
-        if state.phase is TurnPhase.DUAL_SECOND_ANSWER:
+    campaign = CampaignState(state)
+    while campaign.winner is None:
+        state = campaign.round
+        while state.winner is None:
+            ai_turn = ai_knowledge is not None and state.turn == 1
+            if state.phase is TurnPhase.DUAL_SECOND_ANSWER:
+                if ai_turn:
+                    assert ai_knowledge is not None
+                    state, ai_knowledge = _ai_resolve_second(state, ai_knowledge)
+                else:
+                    state = _resolve_second_answer(state)
+                continue
+            if state.phase is TurnPhase.POST_ACTION:
+                if ai_turn:
+                    state = end_turn(state)
+                else:
+                    state = _post_action(state, no_clear=args.no_clear, ai_game=args.ai)
+                continue
             if ai_turn:
                 assert ai_knowledge is not None
-                state, ai_knowledge = _ai_resolve_second(state, ai_knowledge)
-            else:
-                state = _resolve_second_answer(state)
-            continue
-        if state.phase is TurnPhase.POST_ACTION:
-            if ai_turn:
-                state = end_turn(state)
-            else:
-                state = _post_action(state, no_clear=args.no_clear, ai_game=args.ai)
-            continue
-        if ai_turn:
-            assert ai_knowledge is not None
-            state, ai_knowledge = _ai_action(state, ai_knowledge)
-            continue
-        _handoff(
-            f"{state.actor.name}, make sure only you can see the terminal.", no_clear=args.no_clear
+                state, ai_knowledge = _ai_action(state, ai_knowledge)
+                continue
+            _handoff(
+                f"{state.actor.name}, make sure only you can see the terminal.",
+                no_clear=args.no_clear,
+            )
+            _show_private_turn(state, ai_knowledge)
+            command = input("\n[a]sk, a[c]cuse, [q]uit: ").strip().lower()
+            try:
+                if command == "a":
+                    state = _ask(state, no_clear=args.no_clear, ai_opponent=args.ai)
+                elif command == "c":
+                    state = _accuse(state)
+                elif command == "q":
+                    return
+            except (ValueError, IndexError) as error:
+                print(error)
+                input("Press Enter to continue...")
+        round_winner = state.players[state.winner]
+        print(
+            f"\n{round_winner.name} wins round {campaign.round_number}. "
+            f"Money: {state.players[0].name} ${state.players[0].money:,}, "
+            f"{state.players[1].name} ${state.players[1].money:,}"
         )
-        _show_private_turn(state, ai_knowledge)
-        command = input("\n[a]sk, a[c]cuse, [q]uit: ").strip().lower()
-        try:
-            if command == "a":
-                state = _ask(state, no_clear=args.no_clear, ai_opponent=args.ai)
-            elif command == "c":
-                state = _accuse(state)
-            elif command == "q":
-                return
-        except (ValueError, IndexError) as error:
-            print(error)
-            input("Press Enter to continue...")
-    winner = state.players[state.winner]
-    print(f"\n{winner.name} wins!")
+        campaign = next_campaign_round(replace(campaign, round=state))
+        if campaign.winner is None:
+            if ai_knowledge is not None:
+                ai_knowledge = replace(ai_knowledge, belief=full_belief(ai_knowledge.universe))
+            input("\nPress Enter to begin the next round...")
+    winner = campaign.round.players[campaign.winner]
+    print(f"\n{winner.name} wins the campaign with ${winner.money:,}!")
 
 
 def main() -> None:
