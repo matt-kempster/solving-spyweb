@@ -1,23 +1,33 @@
 # Spy Web solver
 
-Strictly typed Spy Web rules, auditable event replay, compact solver encoding,
-and an initial terminal interface.
+A strictly typed Python/NumPy foundation for solving and auditing Spy Web.
 
-## Commands
+The project separates:
 
-```sh
-pnpm install
-pnpm check
-pnpm test
-pnpm tui
+- `spyweb.core`: authoritative game vocabulary and question resolution
+- `spyweb.solver`: compact NumPy board universe, filtering, and scoring
+- `spyweb.cli`: interactive physical-game solving assistant
+
+The bundled card directions are explicitly a development fixture. They must be
+replaced with a verified transcription before recommendations are authoritative.
+
+## Setup
+
+```bash
+uv sync
+uv run spyweb
 ```
 
-The card directions in `src/core/catalog.ts` are deliberately marked as a
-fixture. Replace them with a verified transcription before treating solver
-recommendations as authoritative.
+The first run creates a cached board universe. Use a smaller development sample:
 
-## Structure
+```bash
+uv run spyweb --boards 50000
+```
 
-- `src/core`: game vocabulary, board validation, question resolution, events
-- `src/solver`: compact board universe, belief filtering, action scoring
-- `src/app`: human-facing terminal interface
+## Verification
+
+```bash
+uv run mypy spyweb tests
+uv run ruff check .
+uv run pytest
+```

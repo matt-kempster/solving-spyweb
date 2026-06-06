@@ -1,0 +1,41 @@
+[project]
+name = "solving-spyweb"
+version = "0.2.0"
+description = "Typed, auditable Spy Web solver"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+  "numpy>=1.24,<3",
+]
+
+[project.scripts]
+spyweb = "spyweb.cli:main"
+
+[dependency-groups]
+dev = [
+  "mypy>=1.13",
+  "pytest>=8.3",
+  "ruff>=0.11",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["spyweb"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+packages = ["spyweb"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
