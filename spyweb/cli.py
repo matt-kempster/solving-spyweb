@@ -20,7 +20,13 @@ from spyweb.core.model import (
     Sense,
     SpyAnswer,
 )
-from spyweb.solver.belief import full_belief, pair_candidates, pair_count, rank_questions
+from spyweb.solver.belief import (
+    full_belief,
+    pair_candidates,
+    pair_count,
+    rank_questions,
+    score_dual_payment,
+)
 from spyweb.solver.encoding import Encoding
 from spyweb.solver.replay import ReplayState, apply_event
 from spyweb.solver.universe import Universe, build_universe
@@ -127,6 +133,15 @@ def run(argv: Sequence[str] | None = None) -> None:
                     f"  {_answer_label(encoding.decode_answer(partition.answer))}: "
                     f"{partition.pairs} pairs / {partition.boards:,} boards"
                 )
+            if universe.dual_question[int(best.question)]:
+                print("\nIf the opponent reveals each first answer:")
+                for option in score_dual_payment(universe, state.belief, best.question):
+                    print(
+                        f"  {_answer_label(encoding.decode_answer(option.first))}: "
+                        f"no pay {option.no_pay_pairs} pairs / {option.no_pay_boards:,} boards; "
+                        f"pay worst case {option.paid_worst_pairs} pairs / "
+                        f"{option.paid_worst_boards:,} boards"
+                    )
             continue
         if command == "c":
             candidates = sorted(

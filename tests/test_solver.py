@@ -4,7 +4,13 @@ from spyweb.core.catalog import FIXTURE_RULES
 from spyweb.core.events import QuestionAnswered
 from spyweb.core.model import LandmarkAnswer, Question, QuestionId, Sense, SpyId
 from spyweb.core.rules import answer_question, validate_board
-from spyweb.solver.belief import full_belief, pair_candidates, pair_count, rank_questions
+from spyweb.solver.belief import (
+    full_belief,
+    pair_candidates,
+    pair_count,
+    rank_questions,
+    score_dual_payment,
+)
 from spyweb.solver.encoding import Encoding
 from spyweb.solver.replay import ReplayState, apply_event
 from spyweb.solver.universe import Universe, build_universe
@@ -17,6 +23,11 @@ def test_scores_replays_and_round_trips_cache(tmp_path: Path) -> None:
     assert pair_count(universe, belief) == 81
     assert len(pair_candidates(universe, belief)) == 81
     assert len(rank_questions(universe, belief)) == 27
+    dual = score_dual_payment(
+        universe, belief, encoding.question_id(Question(SpyId(0), Sense.POINT))
+    )
+    assert dual
+    assert all(option.paid_worst_boards <= option.no_pay_boards for option in dual)
 
     event = QuestionAnswered(
         Question(SpyId(0), Sense.LOOK), LandmarkAnswer(FIXTURE_RULES.landmarks[0].id)

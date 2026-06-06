@@ -37,6 +37,23 @@ class PairCandidate:
     boards: int
 
 
+@dataclass(frozen=True)
+class PaidSecondPartition:
+    second: AnswerCode
+    boards: int
+    pairs: int
+
+
+@dataclass(frozen=True)
+class DualFirstOption:
+    first: AnswerCode
+    no_pay_boards: int
+    no_pay_pairs: int
+    paid_worst_boards: int
+    paid_worst_pairs: int
+    paid_partitions: tuple[PaidSecondPartition, ...]
+
+
 def full_belief(universe: Universe) -> Belief:
     return np.arange(universe.board_count, dtype=np.uint32)
 
@@ -98,6 +115,44 @@ def score_question(universe: Universe, belief: Belief, question: QuestionId) -> 
         max(partition.pairs for partition in partitions),
         tuple(partitions),
     )
+
+
+def score_dual_payment(
+    universe: Universe, belief: Belief, question: QuestionId
+) -> tuple[DualFirstOption, ...]:
+    if not universe.dual_question[int(question)]:
+        raise ValueError(f"Question {question} does not have two directions")
+    answers = np.unique(
+        np.concatenate(
+            (universe.answer0[int(question), belief], universe.answer1[int(question), belief])
+        )
+    )
+    options = []
+    for answer in answers:
+        first = AnswerCode(int(answer))
+        first_bucket = filter_first_answer(universe, belief, question, first)
+        a0 = universe.answer0[int(question), first_bucket]
+        a1 = universe.answer1[int(question), first_bucket]
+        other = np.where(a0 == first, a1, a0)
+        paid_partitions = tuple(
+            PaidSecondPartition(
+                AnswerCode(int(second)),
+                int((second_bucket := first_bucket[other == second]).size),
+                pair_count(universe, _belief(second_bucket)),
+            )
+            for second in np.unique(other)
+        )
+        options.append(
+            DualFirstOption(
+                first,
+                int(first_bucket.size),
+                pair_count(universe, first_bucket),
+                max(partition.boards for partition in paid_partitions),
+                max(partition.pairs for partition in paid_partitions),
+                paid_partitions,
+            )
+        )
+    return tuple(options)
 
 
 def rank_questions(universe: Universe, belief: Belief) -> tuple[QuestionScore, ...]:
