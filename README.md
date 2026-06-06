@@ -25,6 +25,18 @@ Play a vanilla two-player hot-seat game:
 uv run spyweb-play
 ```
 
+Or run the small local browser UI:
+
+```bash
+uv run spyweb-web
+# open http://127.0.0.1:8000
+```
+
+The browser UI is an additional hot-seat interface; it does not replace the
+TUI. It shows the selected player's private board, card directions, actions,
+knowledge bases, and game log. Its drag-and-drop deduction board is stored only
+in browser `localStorage` and does not change authoritative game state.
+
 The emulator generates both private boards, shows the current player's board,
 lists legal questions by number, resolves answers automatically, supports
 accusations, and clears the terminal before passing turns. Raven points north

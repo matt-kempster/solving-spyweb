@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spy Web</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <h1>Spy Web</h1>
+    <label>View as <select id="viewer"><option value="0">Bird</option><option value="1">Sea</option></select></label>
+    <span id="status"></span>
+  </header>
+  <main>
+    <section>
+      <h2>Your private board</h2>
+      <div id="secret"></div>
+      <div class="grid" id="board"></div>
+      <h2>Actions</h2>
+      <div id="actions"></div>
+      <div id="error"></div>
+    </section>
+    <section>
+      <h2>Opponent cards</h2>
+      <div id="cards" class="cards"></div>
+      <h2>Knowledge bases</h2>
+      <div id="knowledge"></div>
+    </section>
+    <section>
+      <h2>Drag notes</h2>
+      <p class="muted">These notes stay in this browser and do not affect the game.</p>
+      <div id="notes-pool" class="notes-pool dropzone"></div>
+      <div class="grid" id="notes-grid"></div>
+      <button id="clear-notes">Clear notes</button>
+      <h2>Game log</h2>
+      <ol id="history"></ol>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -11,6 +11,7 @@ dependencies = [
 [project.scripts]
 spyweb = "spyweb.cli:main"
 spyweb-play = "spyweb.play_cli:main"
+spyweb-web = "spyweb.web:main"
 
 [dependency-groups]
 dev = [
