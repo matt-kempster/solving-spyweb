@@ -37,6 +37,15 @@ TUI. It shows the selected player's private board, card directions, actions,
 knowledge bases, and game log. Its drag-and-drop deduction board is stored only
 in browser `localStorage` and does not change authoritative game state.
 
+Play against the same server-side solver AI used by the TUI:
+
+```bash
+uv run spyweb-web --ai
+```
+
+The first AI launch builds the exact Bird-board knowledge cache. No solver code
+or private AI state runs in or is sent to the browser.
+
 The emulator generates both private boards, shows the current player's board,
 lists legal questions by number, resolves answers automatically, supports
 accusations, and clears the terminal before passing turns. Raven points north

@@ -1,5 +1,11 @@
+import numpy as np
+
+from spyweb.ai import AiKnowledge
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
 from spyweb.core.game import TurnPhase, new_campaign
+from spyweb.solver.belief import full_belief
+from spyweb.solver.encoding import Encoding
+from spyweb.solver.universe import build_universe
 from spyweb.web import WebSession, project_campaign
 
 
@@ -34,3 +40,46 @@ def test_web_session_applies_question_and_turn_actions() -> None:
 
     session.apply({"type": "end_turn", "player": 0})
     assert session.campaign.round.turn == 1
+
+
+def test_web_ai_advances_until_human_input_or_turn() -> None:
+    encoding = Encoding(BIRD_RULES)
+    universe = build_universe(BIRD_RULES, encoding, limit=2_000)
+    knowledge = AiKnowledge(universe, encoding, full_belief(universe))
+    session = WebSession(
+        new_campaign("Bird", BIRD_RULES, "Sea AI", SEA_RULES, seed=4),
+        ai_knowledge=knowledge,
+    )
+
+    question = session.project(0)["questions"]
+    assert isinstance(question, list)
+    first = question[0]
+    assert isinstance(first, dict)
+    session.apply(
+        {
+            "type": "ask",
+            "player": 0,
+            "spy": first["spy"],
+            "sense": first["sense"],
+            "firstAnswerIndex": 0,
+        }
+    )
+    session.apply({"type": "end_turn", "player": 0})
+
+    assert session.campaign.round.turn == 0 or session.ai_pending_question is not None
+    assert session.ai_knowledge is not None
+    assert session.ai_knowledge.belief.size < np.uint32(universe.board_count)
+
+
+def test_ai_projection_rejects_ai_private_view() -> None:
+    encoding = Encoding(BIRD_RULES)
+    universe = build_universe(BIRD_RULES, encoding, limit=100)
+    knowledge = AiKnowledge(universe, encoding, full_belief(universe))
+    campaign = new_campaign("Bird", BIRD_RULES, "Sea AI", SEA_RULES, seed=4)
+
+    try:
+        project_campaign(campaign, 1, ai_knowledge=knowledge)
+    except ValueError as error:
+        assert str(error) == "The AI's private board is not viewable"
+    else:
+        raise AssertionError("AI private state must not be projected")

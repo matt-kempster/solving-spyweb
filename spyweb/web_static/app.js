@@ -9,7 +9,7 @@ async function load() {
 }
 
 async function act(payload) {
-  $("error").textContent = "";
+  $("error").textContent = state.aiEnabled && payload.type === "end_turn" ? "Sea AI is choosing…" : "";
   payload.player = state.viewer;
   const response = await fetch("/api/action", {
     method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)
@@ -27,7 +27,9 @@ function directions(card) {
 
 function render() {
   const me = state.players[state.viewer], other = state.players[1 - state.viewer];
-  $("status").textContent = `Round ${state.round} · Turn: ${state.players[state.turn].name} · ${me.name} ${money(me.money)} · ${other.name} ${money(other.money)}`;
+  $("viewer").disabled = state.aiEnabled;
+  const belief = state.aiBelief === null ? "" : ` · AI knowledge: ${state.aiBelief.pairs} pairs`;
+  $("status").textContent = `Round ${state.round} · Turn: ${state.players[state.turn].name} · ${me.name} ${money(me.money)} · ${other.name} ${money(other.money)}${belief}`;
   $("secret").textContent = `Ringleader: ${me.ringleader} · Hideout: ${me.hideout}`;
   $("board").innerHTML = me.board.map(cell => `<div class="cell"><strong>${cell.city}</strong>${cell.occupant}</div>`).join("");
   $("cards").innerHTML = state.opponentCards.map(card => `<div class="card"><strong>${card.name}</strong> ${money(card.bounty)}<div class="dirs">${directions(card)}</div></div>`).join("");
@@ -48,6 +50,13 @@ function renderActions() {
     $("next").onclick = () => act({type: "next_round"});
     return;
   }
+  if (state.aiQuestion !== null) {
+    $("actions").innerHTML = `<p>Sea AI asks: What does ${state.aiQuestion.spy} ${state.aiQuestion.sense}?</p>
+      <p>Choose which truthful answer to reveal first:</p>
+      ${state.aiQuestion.answers.map((answer, i) => `<button class="ai-answer" data-index="${i}">${answer}</button>`).join("")}`;
+    document.querySelectorAll(".ai-answer").forEach(button => button.onclick = () => act({type: "ai_answer", firstAnswerIndex: Number(button.dataset.index)}));
+    return;
+  }
   if (!active) { $("actions").innerHTML = "<p>Switch to the current player to act.</p>"; return; }
   if (state.phase === "dual_second_answer") {
     $("actions").innerHTML = `<button id="buy-second">Pay $100k for second answer</button><button id="decline-second">Decline</button>`;
@@ -65,11 +74,17 @@ function renderActions() {
   const suspects = state.opponentCards.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
   const cities = state.cities.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
   $("actions").innerHTML = `
-    <select id="question">${options}</select><select id="first"><option value="0">first direction</option><option value="1">second direction</option></select><button id="ask">Ask</button>
+    <select id="question">${options}</select><span id="direction-choice"><select id="first"><option value="0">first direction</option><option value="1">second direction</option></select></span><button id="ask">Ask</button>
     <br><select id="suspect">${suspects}</select><select id="city">${cities}</select><button id="accuse">Accuse</button>`;
+  const updateDirectionChoice = () => {
+    const q = state.questions[Number($("question").value)];
+    $("direction-choice").hidden = !q.dual || state.aiEnabled;
+  };
+  $("question").onchange = updateDirectionChoice;
+  updateDirectionChoice();
   $("ask").onclick = () => {
     const q = state.questions[Number($("question").value)];
-    act({type: "ask", spy: q.spy, sense: q.sense, firstAnswerIndex: q.dual ? Number($("first").value) : 0});
+    act({type: "ask", spy: q.spy, sense: q.sense, firstAnswerIndex: q.dual && !state.aiEnabled ? Number($("first").value) : 0});
   };
   $("accuse").onclick = () => act({type: "accuse", ringleader: Number($("suspect").value), hideout: Number($("city").value)});
 }

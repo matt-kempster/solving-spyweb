@@ -9,8 +9,19 @@ from pathlib import Path
 from threading import Lock
 from typing import cast
 
+from spyweb.ai import (
+    AiKnowledge,
+    accusation_candidate,
+    load_ai_knowledge,
+    observe_first,
+    observe_second,
+    recommended_question,
+    reset_ai_knowledge,
+    should_buy_second,
+)
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
 from spyweb.core.game import (
+    ACTION_COST,
     Accusation,
     AskedQuestion,
     BoughtExtraAction,
@@ -19,6 +30,7 @@ from spyweb.core.game import (
     EndedTurn,
     GameEvent,
     GameState,
+    TurnPhase,
     accuse,
     ask_question,
     buy_extra_action,
@@ -40,6 +52,8 @@ from spyweb.core.model import (
     SpyAnswer,
     SpyId,
 )
+from spyweb.core.rules import answer_question
+from spyweb.solver.belief import pair_count
 
 type JsonValue = None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
 
@@ -137,9 +151,17 @@ def _cards_record(rules: Rules) -> list[JsonValue]:
     ]
 
 
-def project_campaign(campaign: CampaignState, viewer: int) -> dict[str, JsonValue]:
+def project_campaign(
+    campaign: CampaignState,
+    viewer: int,
+    *,
+    ai_knowledge: AiKnowledge | None = None,
+    ai_pending_question: Question | None = None,
+) -> dict[str, JsonValue]:
     if viewer not in (0, 1):
         raise ValueError("Viewer must be player 0 or 1")
+    if ai_knowledge is not None and viewer != 0:
+        raise ValueError("The AI's private board is not viewable")
     state = campaign.round
     opponent = 1 - viewer
     questions = legal_questions(state.players[opponent].rules)
@@ -151,6 +173,32 @@ def project_campaign(campaign: CampaignState, viewer: int) -> dict[str, JsonValu
         "turn": state.turn,
         "phase": state.phase.value,
         "extraActionBought": state.extra_action_bought,
+        "aiEnabled": ai_knowledge is not None,
+        "aiThinking": ai_knowledge is not None and state.turn == 1 and ai_pending_question is None,
+        "aiBelief": (
+            None
+            if ai_knowledge is None
+            else {
+                "boards": int(ai_knowledge.belief.size),
+                "pairs": pair_count(ai_knowledge.universe, ai_knowledge.belief),
+            }
+        ),
+        "aiQuestion": (
+            None
+            if ai_pending_question is None
+            else {
+                "spy": state.players[0].rules.spies[int(ai_pending_question.spy)].name,
+                "sense": ai_pending_question.sense.name.lower(),
+                "answers": [
+                    _answer_label(state.players[0].rules, answer)
+                    for answer in answer_question(
+                        state.players[0].rules,
+                        state.players[0].board,
+                        ai_pending_question,
+                    )
+                ],
+            }
+        ),
         "viewer": viewer,
         "players": [
             _player_record(state, 0, private=viewer == 0),
@@ -190,13 +238,37 @@ def project_campaign(campaign: CampaignState, viewer: int) -> dict[str, JsonValu
 class WebSession:
     campaign: CampaignState
     seed: int | None = None
+    ai_knowledge: AiKnowledge | None = None
+    ai_pending_question: Question | None = None
+
+    def project(self, viewer: int) -> dict[str, JsonValue]:
+        return project_campaign(
+            self.campaign,
+            viewer,
+            ai_knowledge=self.ai_knowledge,
+            ai_pending_question=self.ai_pending_question,
+        )
 
     def apply(self, action: dict[str, JsonValue]) -> None:
         kind = _string(action, "type")
         player = _integer(action, "player")
         state = self.campaign.round
+        if kind == "ai_answer":
+            self._apply_ai_answer(player, _integer(action, "firstAnswerIndex"))
+            self.advance_ai()
+            return
+        if kind == "next_round":
+            if self.ai_knowledge is not None and player != 0:
+                raise ValueError("Only the human player can start the next round")
+            self.campaign = next_campaign_round(self.campaign, seed=self.seed)
+            if self.ai_knowledge is not None:
+                self.ai_knowledge = reset_ai_knowledge(self.ai_knowledge)
+            self.advance_ai()
+            return
         if player != state.turn:
             raise ValueError("It is not that player's turn")
+        if self.ai_knowledge is not None and player == 1:
+            raise ValueError("The AI controls Sea")
         if kind == "ask":
             question = Question(
                 SpyId(_integer(action, "spy")),
@@ -218,12 +290,69 @@ class WebSession:
                 SpyId(_integer(action, "ringleader")),
                 CityId(_integer(action, "hideout")),
             )
-        elif kind == "next_round":
-            self.campaign = next_campaign_round(self.campaign, seed=self.seed)
-            return
         else:
             raise ValueError(f"Unknown action: {kind}")
         self.campaign = CampaignState(state, self.campaign.round_number, self.campaign.winner)
+        self.advance_ai()
+
+    def _apply_ai_answer(self, player: int, first_answer_index: int) -> None:
+        if player != 0 or self.ai_knowledge is None or self.ai_pending_question is None:
+            raise ValueError("There is no AI question awaiting your answer")
+        state = self.campaign.round
+        question = self.ai_pending_question
+        answers = answer_question(state.opponent.rules, state.opponent.board, question)
+        if first_answer_index not in (0, 1):
+            raise ValueError("Choose one of the two truthful answers")
+        first = answers[first_answer_index]
+        state = ask_question(state, question, first_answer_index=first_answer_index)
+        self.ai_knowledge = observe_first(self.ai_knowledge, question, first)
+        self.ai_pending_question = None
+        self.campaign = CampaignState(state, self.campaign.round_number, self.campaign.winner)
+
+    def advance_ai(self) -> None:
+        while self.ai_knowledge is not None:
+            state = self.campaign.round
+            if state.winner is not None or state.turn != 1 or self.ai_pending_question is not None:
+                return
+            if state.phase is TurnPhase.ACTION:
+                candidate = accusation_candidate(self.ai_knowledge)
+                if candidate is not None:
+                    state = accuse(
+                        state,
+                        BIRD_RULES.spies[candidate.ringleader].id,
+                        BIRD_RULES.cities[candidate.hideout].id,
+                    )
+                else:
+                    question = recommended_question(self.ai_knowledge)
+                    answers = answer_question(BIRD_RULES, state.opponent.board, question)
+                    if len(answers) == 2:
+                        self.ai_pending_question = question
+                        return
+                    state = ask_question(state, question)
+                    self.ai_knowledge = observe_first(self.ai_knowledge, question, answers[0])
+            elif state.phase is TurnPhase.DUAL_SECOND_ANSWER:
+                pending = state.pending_second
+                event = state.history[-1]
+                if pending is None or not isinstance(event, AskedQuestion):
+                    raise RuntimeError("Invalid AI second-answer state")
+                if state.actor.money >= ACTION_COST and should_buy_second(
+                    self.ai_knowledge, pending.question, event.answer
+                ):
+                    state = buy_second_answer(state)
+                    second = state.history[-1]
+                    if not isinstance(second, BoughtSecondAnswer):
+                        raise RuntimeError("Missing AI second-answer event")
+                    self.ai_knowledge = observe_second(
+                        self.ai_knowledge,
+                        pending.question,
+                        event.answer,
+                        second.answer,
+                    )
+                else:
+                    state = decline_second_answer(state)
+            else:
+                state = end_turn(state)
+            self.campaign = CampaignState(state, self.campaign.round_number, self.campaign.winner)
 
 
 def _string(record: dict[str, JsonValue], key: str) -> str:
@@ -262,7 +391,7 @@ class Handler(BaseHTTPRequestHandler):
                     )
                 )
                 with _LOCK:
-                    self._json(project_campaign(_session().campaign, viewer))
+                    self._json(_session().project(viewer))
                 return
             filename = "index.html" if self.path == "/" else self.path.lstrip("/")
             path = STATIC_DIR / filename
@@ -296,7 +425,7 @@ class Handler(BaseHTTPRequestHandler):
             viewer = _integer(action, "player")
             with _LOCK:
                 _session().apply(action)
-                response = project_campaign(_session().campaign, viewer)
+                response = _session().project(viewer)
             self._json(response)
         except (KeyError, ValueError, json.JSONDecodeError) as error:
             self._json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
@@ -318,11 +447,23 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--seed", type=int)
+    parser.add_argument("--ai", action="store_true", help="play Bird against the Sea AI")
+    parser.add_argument(
+        "--ai-cache",
+        type=Path,
+        default=Path(".cache/play-ai-bird.npz"),
+        help="cache for the AI's exact Bird-board universe",
+    )
     args = parser.parse_args(argv)
     global _SESSION
+    ai_knowledge = None
+    if args.ai:
+        print(f"Loading or building AI knowledge at {args.ai_cache}...")
+        ai_knowledge = load_ai_knowledge(BIRD_RULES, args.ai_cache)
     _SESSION = WebSession(
-        new_campaign("Bird", BIRD_RULES, "Sea", SEA_RULES, seed=args.seed),
+        new_campaign("Bird", BIRD_RULES, "Sea AI" if args.ai else "Sea", SEA_RULES, seed=args.seed),
         args.seed,
+        ai_knowledge,
     )
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"Spy Web web UI: http://{args.host}:{args.port}")

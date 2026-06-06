@@ -3,9 +3,19 @@ from __future__ import annotations
 import argparse
 import os
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from pathlib import Path
 
+from spyweb.ai import (
+    AiKnowledge,
+    accusation_candidate,
+    load_ai_knowledge,
+    observe_first,
+    observe_second,
+    recommended_question,
+    reset_ai_knowledge,
+    should_buy_second,
+)
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
 from spyweb.core.game import (
     ACTION_COST,
@@ -33,31 +43,14 @@ from spyweb.core.model import (
     Direction,
     LandmarkAnswer,
     NothingAnswer,
-    Question,
     Rules,
     Sense,
     SpyAnswer,
 )
-from spyweb.core.rules import answer_question, rules_fingerprint
+from spyweb.core.rules import answer_question
 from spyweb.solver.belief import (
-    Belief,
-    filter_first_answer,
-    filter_paid_second,
-    full_belief,
-    pair_candidates,
     pair_count,
-    score_dual_payment,
 )
-from spyweb.solver.encoding import Encoding
-from spyweb.solver.policy import recommend_questions
-from spyweb.solver.universe import Universe, build_universe, universe_board_count
-
-
-@dataclass(frozen=True)
-class AiKnowledge:
-    universe: Universe
-    encoding: Encoding
-    belief: Belief
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -238,51 +231,23 @@ def _ask(state: GameState, *, no_clear: bool, ai_opponent: bool) -> GameState:
 
 
 def _load_ai_knowledge(cache: Path) -> AiKnowledge:
-    rules = BIRD_RULES
-    encoding = Encoding(rules)
-    expected = universe_board_count(rules)
-    if cache.exists():
+    cache_existed = cache.exists()
+    if cache_existed:
         print(f"Loading AI knowledge from {cache}...")
-        universe = Universe.load(
-            cache,
-            expected_rules_fingerprint=rules_fingerprint(rules),
-            expected_board_count=expected,
-        )
     else:
+        from spyweb.solver.universe import universe_board_count
+
+        expected = universe_board_count(BIRD_RULES)
         print(f"Building the AI's {expected:,}-board knowledge base...")
-        universe = build_universe(rules, encoding)
-        universe.save(cache)
+    knowledge = load_ai_knowledge(BIRD_RULES, cache)
+    if not cache_existed:
         print(f"Cached AI knowledge at {cache}")
-    return AiKnowledge(universe, encoding, full_belief(universe))
-
-
-def _ai_observe_first(knowledge: AiKnowledge, question: Question, answer: Answer) -> AiKnowledge:
-    belief = filter_first_answer(
-        knowledge.universe,
-        knowledge.belief,
-        knowledge.encoding.question_id(question),
-        knowledge.encoding.answer_code(answer),
-    )
-    return AiKnowledge(knowledge.universe, knowledge.encoding, belief)
-
-
-def _ai_observe_second(
-    knowledge: AiKnowledge, question: Question, first: Answer, second: Answer
-) -> AiKnowledge:
-    belief = filter_paid_second(
-        knowledge.universe,
-        knowledge.belief,
-        knowledge.encoding.question_id(question),
-        knowledge.encoding.answer_code(first),
-        knowledge.encoding.answer_code(second),
-    )
-    return AiKnowledge(knowledge.universe, knowledge.encoding, belief)
+    return knowledge
 
 
 def _ai_action(state: GameState, knowledge: AiKnowledge) -> tuple[GameState, AiKnowledge]:
-    candidates = pair_candidates(knowledge.universe, knowledge.belief)
-    if len(candidates) == 1:
-        candidate = candidates[0]
+    candidate = accusation_candidate(knowledge)
+    if candidate is not None:
         print(
             f"\n{state.actor.name} accuses "
             f"{BIRD_RULES.spies[candidate.ringleader].name} in "
@@ -297,8 +262,7 @@ def _ai_action(state: GameState, knowledge: AiKnowledge) -> tuple[GameState, AiK
             knowledge,
         )
 
-    recommendation = recommend_questions(knowledge.universe, knowledge.belief)
-    question = knowledge.encoding.decode_question(recommendation.best.immediate.question)
+    question = recommended_question(knowledge)
     spy = BIRD_RULES.spies[int(question.spy)]
     print(f"\n{state.actor.name} asks: What does {spy.name} {question.sense.name.lower()} at?")
     answers = answer_question(BIRD_RULES, state.opponent.board, question)
@@ -311,7 +275,7 @@ def _ai_action(state: GameState, knowledge: AiKnowledge) -> tuple[GameState, AiK
     first = answers[first_index]
     print(f"You answer: {_answer_label(BIRD_RULES, first)}")
     next_state = ask_question(state, question, first_answer_index=first_index)
-    return next_state, _ai_observe_first(knowledge, question, first)
+    return next_state, observe_first(knowledge, question, first)
 
 
 def _ai_resolve_second(state: GameState, knowledge: AiKnowledge) -> tuple[GameState, AiKnowledge]:
@@ -319,14 +283,9 @@ def _ai_resolve_second(state: GameState, knowledge: AiKnowledge) -> tuple[GameSt
     assert pending is not None
     event = state.history[-1]
     assert isinstance(event, AskedQuestion)
-    qid = knowledge.encoding.question_id(pending.question)
-    first_code = knowledge.encoding.answer_code(event.answer)
-    option = next(
-        option
-        for option in score_dual_payment(knowledge.universe, knowledge.belief, qid)
-        if option.first == first_code
+    should_buy = state.actor.money >= ACTION_COST and should_buy_second(
+        knowledge, pending.question, event.answer
     )
-    should_buy = state.actor.money >= ACTION_COST and option.paid_worst_pairs < option.no_pay_pairs
     if not should_buy:
         print(f"{state.actor.name} declines the second answer.")
         return decline_second_answer(state), knowledge
@@ -339,7 +298,7 @@ def _ai_resolve_second(state: GameState, knowledge: AiKnowledge) -> tuple[GameSt
     )
     return (
         next_state,
-        _ai_observe_second(knowledge, pending.question, event.answer, second_event.answer),
+        observe_second(knowledge, pending.question, event.answer, second_event.answer),
     )
 
 
@@ -458,7 +417,7 @@ def run(argv: Sequence[str] | None = None) -> None:
         campaign = next_campaign_round(replace(campaign, round=state))
         if campaign.winner is None:
             if ai_knowledge is not None:
-                ai_knowledge = replace(ai_knowledge, belief=full_belief(ai_knowledge.universe))
+                ai_knowledge = reset_ai_knowledge(ai_knowledge)
             input("\nPress Enter to begin the next round...")
     winner = campaign.round.players[campaign.winner]
     print(f"\n{winner.name} wins the campaign with ${winner.money:,}!")
