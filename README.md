@@ -36,6 +36,15 @@ Persist an auditable JSON trace while playing:
 uv run spyweb --boards 50000 --trace-out game.json
 ```
 
+Resume by replaying a saved trace:
+
+```bash
+uv run spyweb --boards 50000 --trace-in game.json --trace-out game.json
+```
+
+Universe caches include a rules fingerprint and board count. The solver rejects
+stale or differently sized caches instead of silently using incompatible data.
+
 Within the assistant:
 
 - `a`: record an ordinary or first dual-direction answer

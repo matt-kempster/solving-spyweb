@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from dataclasses import dataclass
+from hashlib import sha256
 from itertools import permutations
 from math import factorial
 from pathlib import Path
@@ -9,16 +11,63 @@ from pathlib import Path
 import numpy as np
 import numpy.typing as npt
 
-from spyweb.core.model import DIRECTION_DELTA, Board, CityId, Direction, QuestionId, Rules, SpyId
+from spyweb.core.model import (
+    DIRECTION_DELTA,
+    Board,
+    CityId,
+    Direction,
+    QuestionId,
+    Rules,
+    Sense,
+    SpyId,
+)
 from spyweb.solver.encoding import Encoding
 
 UInt8Array = npt.NDArray[np.uint8]
 Int8Array = npt.NDArray[np.int8]
 EMPTY = np.uint8(255)
+CACHE_FORMAT_VERSION = 1
+
+
+def rules_fingerprint(rules: Rules) -> str:
+    record = {
+        "spies": [
+            {
+                "id": int(spy.id),
+                "name": spy.name,
+                "faction": spy.faction.value,
+                "bounty": spy.bounty,
+                "directions": {
+                    sense.name.lower(): [direction.name for direction in spy.directions[sense]]
+                    for sense in Sense
+                },
+            }
+            for spy in rules.spies
+        ],
+        "cities": [
+            {
+                "id": int(city.id),
+                "name": city.name,
+                "coord": [city.coord.row, city.coord.col],
+            }
+            for city in rules.cities
+        ],
+        "landmarks": [
+            {
+                "id": int(landmark.id),
+                "name": landmark.name,
+                "coord": [landmark.coord.row, landmark.coord.col],
+            }
+            for landmark in rules.landmarks
+        ],
+    }
+    encoded = json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
+    return sha256(encoded).hexdigest()
 
 
 @dataclass(frozen=True)
 class Universe:
+    rules_fingerprint: str
     ringleader: UInt8Array
     hideout: UInt8Array
     occupant_by_city: UInt8Array
@@ -51,6 +100,8 @@ class Universe:
         path.parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(
             path,
+            cache_format_version=np.asarray(CACHE_FORMAT_VERSION),
+            rules_fingerprint=np.asarray(self.rules_fingerprint),
             ringleader=self.ringleader,
             hideout=self.hideout,
             occupant_by_city=self.occupant_by_city,
@@ -60,9 +111,24 @@ class Universe:
         )
 
     @classmethod
-    def load(cls, path: Path) -> Universe:
+    def load(
+        cls,
+        path: Path,
+        *,
+        expected_rules_fingerprint: str | None = None,
+        expected_board_count: int | None = None,
+    ) -> Universe:
         with np.load(path) as data:
-            return cls(
+            version = int(data["cache_format_version"])
+            if version != CACHE_FORMAT_VERSION:
+                raise ValueError(
+                    f"Unsupported universe cache version {version}; expected {CACHE_FORMAT_VERSION}"
+                )
+            fingerprint = str(data["rules_fingerprint"])
+            if expected_rules_fingerprint is not None and fingerprint != expected_rules_fingerprint:
+                raise ValueError("Universe cache was built from different rules")
+            universe = cls(
+                fingerprint,
                 np.asarray(data["ringleader"], dtype=np.uint8),
                 np.asarray(data["hideout"], dtype=np.uint8),
                 np.asarray(data["occupant_by_city"], dtype=np.uint8),
@@ -70,17 +136,27 @@ class Universe:
                 np.asarray(data["answer1"], dtype=np.uint8),
                 np.asarray(data["dual_question"], dtype=np.uint8),
             )
+            if expected_board_count is not None and universe.board_count != expected_board_count:
+                raise ValueError(
+                    f"Universe cache contains {universe.board_count:,} boards; "
+                    f"expected {expected_board_count:,}"
+                )
+            return universe
 
 
 def _placement_orders(spy_count: int) -> Iterator[tuple[int, ...]]:
     return permutations(range(spy_count - 1))
 
 
+def universe_board_count(rules: Rules, limit: int | None = None) -> int:
+    full_count = len(rules.spies) * len(rules.cities) * factorial(len(rules.spies) - 1)
+    return full_count if limit is None else min(limit, full_count)
+
+
 def build_universe(rules: Rules, encoding: Encoding, limit: int | None = None) -> Universe:
     spy_count = len(rules.spies)
     city_count = len(rules.cities)
-    full_count = spy_count * city_count * factorial(spy_count - 1)
-    board_count = full_count if limit is None else min(limit, full_count)
+    board_count = universe_board_count(rules, limit)
     occupant = np.full((board_count, city_count), EMPTY, dtype=np.uint8)
     ringleader = np.empty(board_count, dtype=np.uint8)
     hideout_array = np.empty(board_count, dtype=np.uint8)
@@ -137,7 +213,15 @@ def build_universe(rules: Rules, encoding: Encoding, limit: int | None = None) -
             )
             (answer0 if direction_index == 0 else answer1)[q] = answers
         dual[q] = len(directions) == 2
-    return Universe(ringleader, hideout_array, occupant, answer0, answer1, dual)
+    return Universe(
+        rules_fingerprint(rules),
+        ringleader,
+        hideout_array,
+        occupant,
+        answer0,
+        answer1,
+        dual,
+    )
 
 
 def _answers_for_direction(

@@ -4,7 +4,7 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
-from spyweb.audit import write_trace
+from spyweb.audit import read_trace_events, write_trace
 from spyweb.core.catalog import FIXTURE_RULES
 from spyweb.core.events import (
     AccusationResolved,
@@ -30,7 +30,7 @@ from spyweb.solver.belief import (
 )
 from spyweb.solver.encoding import Encoding
 from spyweb.solver.replay import ReplayState, apply_event
-from spyweb.solver.universe import Universe, build_universe
+from spyweb.solver.universe import Universe, build_universe, rules_fingerprint, universe_board_count
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -39,6 +39,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--boards", type=int, default=50_000, help="boards to build; use 3265920 for all"
     )
     parser.add_argument("--cache", type=Path, help="optional .npz universe cache")
+    parser.add_argument("--trace-in", type=Path, help="load and replay an audit JSON trace")
     parser.add_argument("--trace-out", type=Path, help="write accepted events as audit JSON")
     return parser.parse_args(argv)
 
@@ -88,7 +89,11 @@ def _load_or_build(args: argparse.Namespace, encoding: Encoding) -> Universe:
     cache: Path | None = args.cache
     if cache is not None and cache.exists():
         print(f"Loading universe from {cache}...")
-        return Universe.load(cache)
+        return Universe.load(
+            cache,
+            expected_rules_fingerprint=rules_fingerprint(FIXTURE_RULES),
+            expected_board_count=universe_board_count(FIXTURE_RULES, args.boards),
+        )
     print(f"Building a {args.boards:,}-board development universe...")
     universe = build_universe(FIXTURE_RULES, encoding, args.boards)
     if cache is not None:
@@ -102,6 +107,16 @@ def run(argv: Sequence[str] | None = None) -> None:
     universe = _load_or_build(args, encoding)
     state = ReplayState(full_belief(universe))
     history = [state]
+    if args.trace_in is not None:
+        print(f"Replaying trace from {args.trace_in}...")
+        for saved_event in read_trace_events(args.trace_in, FIXTURE_RULES):
+            state = apply_event(universe, encoding, state, saved_event)
+            if state.belief.size == 0:
+                raise ValueError(
+                    f"Trace event {len(state.trace)} contradicts every remaining board"
+                )
+            history.append(state)
+        print(f"Replayed {len(state.trace)} events")
     while True:
         print(f"\nPossible boards: {state.belief.size:,}")
         print(f"Possible ringleader/hideout pairs: {pair_count(universe, state.belief)}")

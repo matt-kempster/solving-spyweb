@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from spyweb.core.catalog import FIXTURE_RULES
 from spyweb.core.events import QuestionAnswered
 from spyweb.core.model import LandmarkAnswer, Question, QuestionId, Sense, SpyId
@@ -13,7 +15,7 @@ from spyweb.solver.belief import (
 )
 from spyweb.solver.encoding import Encoding
 from spyweb.solver.replay import ReplayState, apply_event
-from spyweb.solver.universe import Universe, build_universe
+from spyweb.solver.universe import Universe, build_universe, rules_fingerprint
 
 
 def test_scores_replays_and_round_trips_cache(tmp_path: Path) -> None:
@@ -38,9 +40,15 @@ def test_scores_replays_and_round_trips_cache(tmp_path: Path) -> None:
 
     cache = tmp_path / "universe.npz"
     universe.save(cache)
-    loaded = Universe.load(cache)
+    loaded = Universe.load(
+        cache,
+        expected_rules_fingerprint=rules_fingerprint(FIXTURE_RULES),
+        expected_board_count=universe.board_count,
+    )
     assert loaded.board_count == universe.board_count
     assert (loaded.answer0 == universe.answer0).all()
+    with pytest.raises(ValueError, match="expected 2,001"):
+        Universe.load(cache, expected_board_count=2_001)
 
 
 def test_numpy_answers_match_pure_rules_engine() -> None:
