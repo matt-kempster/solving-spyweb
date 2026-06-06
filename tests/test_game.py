@@ -79,13 +79,25 @@ def test_paid_extra_action_transfers_money_and_preserves_turn() -> None:
 
     assert continued.turn == 0
     assert continued.phase is TurnPhase.ACTION
+    assert continued.extra_action_bought
     assert continued.players[0].money == 0
     assert continued.players[1].money == 200_000
     assert isinstance(continued.history[-1], BoughtExtraAction)
 
+    acted_again = ask_question(continued, legal_questions(SEA_RULES)[1])
+    try:
+        buy_extra_action(acted_again)
+    except ValueError as error:
+        assert str(error) == "Only one extra action may be bought per turn"
+    else:
+        raise AssertionError("A second extra action purchase in one turn must fail")
+
+    passed = end_turn(acted_again)
+    assert not passed.extra_action_bought
+
 
 def test_urchin_second_point_answer_can_be_bought_or_declined() -> None:
-    state = new_game("Bird", BIRD_RULES, "Sea", SEA_RULES, seed=7)
+    state = new_game("Bird", BIRD_RULES, "Sea", SEA_RULES, seed=7, starting_money=200_000)
     urchin_point = next(
         question
         for question in legal_questions(SEA_RULES)
@@ -98,9 +110,13 @@ def test_urchin_second_point_answer_can_be_bought_or_declined() -> None:
 
     bought = buy_second_answer(asked)
     assert bought.phase is TurnPhase.POST_ACTION
-    assert bought.players[0].money == 0
-    assert bought.players[1].money == 200_000
+    assert bought.players[0].money == 100_000
+    assert bought.players[1].money == 300_000
     assert isinstance(bought.history[-1], BoughtSecondAnswer)
+    assert not bought.extra_action_bought
+
+    continued = buy_extra_action(bought)
+    assert continued.extra_action_bought
 
     declined = decline_second_answer(asked)
     assert declined.phase is TurnPhase.POST_ACTION

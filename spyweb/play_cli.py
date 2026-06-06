@@ -381,7 +381,7 @@ def _resolve_second_answer(state: GameState) -> GameState:
 def _post_action(state: GameState, *, no_clear: bool, ai_game: bool) -> GameState:
     if state.winner is not None:
         return state
-    if state.actor.money >= ACTION_COST:
+    if state.actor.money >= ACTION_COST and not state.extra_action_bought:
         command = (
             input(
                 f"\nPay ${ACTION_COST:,} to take another action? "

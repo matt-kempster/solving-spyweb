@@ -31,7 +31,8 @@ accusations, and clears the terminal before passing turns. Raven points north
 and south; Urchin points east and west. The responding player chooses which
 truthful answer to reveal first, and the asker may pay `$100,000` for the other
 answer. After any action, the active player may transfer `$100,000` to the
-opponent to take another action.
+opponent to take one additional action that turn. The Raven/Urchin
+second-direction bribe is independent and does not consume that extra action.
 
 The emulator plays the official multi-round campaign. Each player starts with
 `$100,000`; correct accusations earn the captured leader's printed bounty; the

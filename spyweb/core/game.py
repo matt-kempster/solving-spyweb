@@ -76,6 +76,7 @@ class GameState:
     players: tuple[PlayerState, PlayerState]
     turn: int = 0
     phase: TurnPhase = TurnPhase.ACTION
+    extra_action_bought: bool = False
     pending_second: PendingSecondAnswer | None = None
     winner: int | None = None
     history: tuple[GameEvent, ...] = ()
@@ -221,12 +222,15 @@ def buy_extra_action(state: GameState) -> GameState:
         raise ValueError("An extra action can only be bought after an action")
     if state.winner is not None:
         raise ValueError("Game is already over")
+    if state.extra_action_bought:
+        raise ValueError("Only one extra action may be bought per turn")
     players = _transfer_to_opponent(state, ACTION_COST)
     event = BoughtExtraAction(state.turn)
     return replace(
         state,
         players=players,
         phase=TurnPhase.ACTION,
+        extra_action_bought=True,
         history=(*state.history, event),
     )
 
@@ -241,6 +245,7 @@ def end_turn(state: GameState) -> GameState:
         state,
         turn=1 - state.turn,
         phase=TurnPhase.ACTION,
+        extra_action_bought=False,
         history=(*state.history, event),
     )
 
