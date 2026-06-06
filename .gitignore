@@ -7,3 +7,5 @@ __pycache__/
 *.npz
 .coverage
 htmlcov/
+node_modules/
+dist/
