@@ -30,6 +30,13 @@ class QuestionScore:
     partitions: tuple[Partition, ...]
 
 
+@dataclass(frozen=True)
+class PairCandidate:
+    ringleader: int
+    hideout: int
+    boards: int
+
+
 def full_belief(universe: Universe) -> Belief:
     return np.arange(universe.board_count, dtype=np.uint32)
 
@@ -37,6 +44,19 @@ def full_belief(universe: Universe) -> Belief:
 def pair_count(universe: Universe, belief: Belief) -> int:
     keys = universe.ringleader[belief] * universe.city_count + universe.hideout[belief]
     return int(np.unique(keys).size)
+
+
+def pair_candidates(universe: Universe, belief: Belief) -> tuple[PairCandidate, ...]:
+    keys = universe.ringleader[belief] * universe.city_count + universe.hideout[belief]
+    unique, counts = np.unique(keys, return_counts=True)
+    return tuple(
+        PairCandidate(
+            int(key) // universe.city_count,
+            int(key) % universe.city_count,
+            int(count),
+        )
+        for key, count in zip(unique, counts, strict=True)
+    )
 
 
 def filter_first_answer(

@@ -18,11 +18,27 @@ uv sync
 uv run spyweb
 ```
 
-The first run creates a cached board universe. Use a smaller development sample:
+Use a representative development sample:
 
 ```bash
 uv run spyweb --boards 50000
 ```
+
+Persist and reuse a complete-universe cache:
+
+```bash
+uv run spyweb --boards 3265920 --cache .cache/spyweb-full.npz
+```
+
+Within the assistant:
+
+- `a`: record an ordinary or first dual-direction answer
+- `s`: record a paid second direction after its first answer
+- `x`: record a correct or incorrect accusation
+- `p`: inspect the recommended question's answer partitions
+- `c`: inspect remaining ringleader/hideout candidate counts
+- `t`: inspect the audit trace
+- `u`: undo the last event
 
 ## Verification
 
