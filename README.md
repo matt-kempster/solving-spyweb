@@ -45,6 +45,16 @@ uv run spyweb --boards 50000 --trace-in game.json --trace-out game.json
 Universe caches include a rules fingerprint and board count. The solver rejects
 stale or differently sized caches instead of silently using incompatible data.
 
+Enable bounded adversarial lookahead once the belief is small enough:
+
+```bash
+uv run spyweb --lookahead-depth 2 --lookahead-max-boards 10000
+```
+
+Lookahead treats the opponent's first dual-direction answer adversarially. Paid
+second-answer decisions are currently shown separately rather than folded into
+the recursive policy.
+
 Within the assistant:
 
 - `a`: record an ordinary or first dual-direction answer

@@ -14,6 +14,7 @@ from spyweb.solver.belief import (
     score_dual_payment,
 )
 from spyweb.solver.encoding import Encoding
+from spyweb.solver.policy import recommend_questions
 from spyweb.solver.replay import ReplayState, apply_event
 from spyweb.solver.universe import Universe, build_universe, rules_fingerprint
 
@@ -63,3 +64,18 @@ def test_numpy_answers_match_pure_rules_engine() -> None:
             answers = answer_question(FIXTURE_RULES, board, question)
             assert universe.answer0[q, board_index] == encoding.answer_code(answers[0])
             assert universe.answer1[q, board_index] == encoding.answer_code(answers[-1])
+
+
+def test_policy_uses_bounded_lookahead_and_reports_fallback() -> None:
+    encoding = Encoding(FIXTURE_RULES)
+    universe = build_universe(FIXTURE_RULES, encoding, 500)
+    belief = full_belief(universe)
+
+    fallback = recommend_questions(universe, belief, depth=2, max_lookahead_boards=100)
+    assert fallback.requested_depth == 2
+    assert fallback.effective_depth == 1
+
+    narrowed = belief[:100]
+    deeper = recommend_questions(universe, narrowed, depth=2, max_lookahead_boards=100)
+    assert deeper.effective_depth == 2
+    assert deeper.best.worst_leaf_pairs <= deeper.best.immediate.worst_pairs

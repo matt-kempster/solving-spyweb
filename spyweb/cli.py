@@ -25,10 +25,10 @@ from spyweb.solver.belief import (
     full_belief,
     pair_candidates,
     pair_count,
-    rank_questions,
     score_dual_payment,
 )
 from spyweb.solver.encoding import Encoding
+from spyweb.solver.policy import recommend_questions
 from spyweb.solver.replay import ReplayState, apply_event
 from spyweb.solver.universe import Universe, build_universe, rules_fingerprint, universe_board_count
 
@@ -41,6 +41,18 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--cache", type=Path, help="optional .npz universe cache")
     parser.add_argument("--trace-in", type=Path, help="load and replay an audit JSON trace")
     parser.add_argument("--trace-out", type=Path, help="write accepted events as audit JSON")
+    parser.add_argument(
+        "--lookahead-depth",
+        type=int,
+        default=1,
+        help="adversarial question lookahead depth; deeper search starts only on small beliefs",
+    )
+    parser.add_argument(
+        "--lookahead-max-boards",
+        type=int,
+        default=10_000,
+        help="maximum belief size eligible for deeper lookahead",
+    )
     return parser.parse_args(argv)
 
 
@@ -120,13 +132,33 @@ def run(argv: Sequence[str] | None = None) -> None:
     while True:
         print(f"\nPossible boards: {state.belief.size:,}")
         print(f"Possible ringleader/hideout pairs: {pair_count(universe, state.belief)}")
-        ranking = rank_questions(universe, state.belief)
-        for score in ranking[:5]:
+        recommendation = recommend_questions(
+            universe,
+            state.belief,
+            depth=args.lookahead_depth,
+            max_lookahead_boards=args.lookahead_max_boards,
+        )
+        if recommendation.effective_depth != recommendation.requested_depth:
+            print(
+                f"Policy: depth 1 fallback; depth {recommendation.requested_depth} starts at "
+                f"{args.lookahead_max_boards:,} boards"
+            )
+        else:
+            print(f"Policy: adversarial depth {recommendation.effective_depth}")
+        for policy_score in recommendation.scores[:5]:
+            score = policy_score.immediate
             question = encoding.decode_question(score.question)
             spy_name = FIXTURE_RULES.spies[int(question.spy)].name
+            suffix = ""
+            if recommendation.effective_depth > 1:
+                suffix = (
+                    f"; depth-{recommendation.effective_depth} worst "
+                    f"{policy_score.worst_leaf_pairs} pairs / "
+                    f"{policy_score.worst_leaf_boards:,} boards"
+                )
             print(
-                f"  {spy_name} {question.sense.name.lower()}: "
-                f"worst {score.worst_pairs} pairs / {score.worst_boards:,} boards"
+                f"  {spy_name} {question.sense.name.lower()}: immediate worst "
+                f"{score.worst_pairs} pairs / {score.worst_boards:,} boards{suffix}"
             )
         command = (
             input(
@@ -139,7 +171,7 @@ def run(argv: Sequence[str] | None = None) -> None:
         if command == "q":
             return
         if command == "p":
-            best = ranking[0]
+            best = recommendation.best.immediate
             question = encoding.decode_question(best.question)
             print(
                 f"\n{FIXTURE_RULES.spies[int(question.spy)].name} "
