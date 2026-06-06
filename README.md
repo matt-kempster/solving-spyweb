@@ -24,6 +24,14 @@ Use a representative development sample:
 uv run spyweb --boards 50000
 ```
 
+Export the development fixture to an editable, versioned transcription file,
+then load that file after correcting it from the physical cards:
+
+```bash
+uv run spyweb --export-rules rules.json
+uv run spyweb --rules rules.json --boards 50000
+```
+
 Persist and reuse a complete-universe cache:
 
 ```bash

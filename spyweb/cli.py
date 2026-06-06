@@ -18,10 +18,12 @@ from spyweb.core.model import (
     LandmarkAnswer,
     NothingAnswer,
     Question,
+    Rules,
     Sense,
     SpyAnswer,
 )
 from spyweb.core.rules import rules_fingerprint
+from spyweb.core.rules_io import read_rules, write_rules
 from spyweb.solver.belief import (
     full_belief,
     pair_candidates,
@@ -40,6 +42,8 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--boards", type=int, default=50_000, help="boards to build; use 3265920 for all"
     )
     parser.add_argument("--cache", type=Path, help="optional .npz universe cache")
+    parser.add_argument("--rules", type=Path, help="load a versioned rules transcription JSON")
+    parser.add_argument("--export-rules", type=Path, help="export the development fixture and exit")
     parser.add_argument("--trace-in", type=Path, help="load and replay an audit JSON trace")
     parser.add_argument("--trace-out", type=Path, help="write accepted events as audit JSON")
     parser.add_argument(
@@ -57,30 +61,30 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _answer_label(answer: Answer) -> str:
+def _answer_label(rules: Rules, answer: Answer) -> str:
     if isinstance(answer, NothingAnswer):
         return "Nothing"
     if isinstance(answer, SpyAnswer):
-        return FIXTURE_RULES.spies[int(answer.spy)].name
-    return FIXTURE_RULES.landmarks[int(answer.landmark)].name
+        return rules.spies[int(answer.spy)].name
+    return rules.landmarks[int(answer.landmark)].name
 
 
-def _parse_answer(raw: str) -> Answer:
+def _parse_answer(rules: Rules, raw: str) -> Answer:
     value = raw.strip().lower()
     if value == "nothing":
         return NothingAnswer()
-    spy = next((item for item in FIXTURE_RULES.spies if item.name.lower() == value), None)
+    spy = next((item for item in rules.spies if item.name.lower() == value), None)
     if spy is not None:
         return SpyAnswer(spy.id)
-    landmark = next((item for item in FIXTURE_RULES.landmarks if item.name.lower() == value), None)
+    landmark = next((item for item in rules.landmarks if item.name.lower() == value), None)
     if landmark is not None:
         return LandmarkAnswer(landmark.id)
     raise ValueError(f"Unknown answer: {raw}")
 
 
-def _parse_question() -> Question:
+def _parse_question(rules: Rules) -> Question:
     spy_name = input("Spy: ").strip().lower()
-    spy = next((item for item in FIXTURE_RULES.spies if item.name.lower() == spy_name), None)
+    spy = next((item for item in rules.spies if item.name.lower() == spy_name), None)
     if spy is None:
         raise ValueError(f"Unknown spy: {spy_name}")
     try:
@@ -90,25 +94,25 @@ def _parse_question() -> Question:
     return Question(spy.id, sense)
 
 
-def _parse_city(raw: str) -> CityId:
+def _parse_city(rules: Rules, raw: str) -> CityId:
     value = raw.strip().lower()
-    city = next((item for item in FIXTURE_RULES.cities if item.name.lower() == value), None)
+    city = next((item for item in rules.cities if item.name.lower() == value), None)
     if city is None:
         raise ValueError(f"Unknown city: {raw}")
     return city.id
 
 
-def _load_or_build(args: argparse.Namespace, encoding: Encoding) -> Universe:
+def _load_or_build(args: argparse.Namespace, rules: Rules, encoding: Encoding) -> Universe:
     cache: Path | None = args.cache
     if cache is not None and cache.exists():
         print(f"Loading universe from {cache}...")
         return Universe.load(
             cache,
-            expected_rules_fingerprint=rules_fingerprint(FIXTURE_RULES),
-            expected_board_count=universe_board_count(FIXTURE_RULES, args.boards),
+            expected_rules_fingerprint=rules_fingerprint(rules),
+            expected_board_count=universe_board_count(rules, args.boards),
         )
-    print(f"Building a {args.boards:,}-board development universe...")
-    universe = build_universe(FIXTURE_RULES, encoding, args.boards)
+    print(f"Building a {args.boards:,}-board universe...")
+    universe = build_universe(rules, encoding, args.boards)
     if cache is not None:
         universe.save(cache)
     return universe
@@ -116,13 +120,18 @@ def _load_or_build(args: argparse.Namespace, encoding: Encoding) -> Universe:
 
 def run(argv: Sequence[str] | None = None) -> None:
     args = _parse_args(argv)
-    encoding = Encoding(FIXTURE_RULES)
-    universe = _load_or_build(args, encoding)
+    rules = FIXTURE_RULES if args.rules is None else read_rules(args.rules)
+    if args.export_rules is not None:
+        write_rules(rules, args.export_rules)
+        print(f"Wrote rules transcription to {args.export_rules}")
+        return
+    encoding = Encoding(rules)
+    universe = _load_or_build(args, rules, encoding)
     state = ReplayState(full_belief(universe))
     history = [state]
     if args.trace_in is not None:
         print(f"Replaying trace from {args.trace_in}...")
-        for saved_event in read_trace_events(args.trace_in, FIXTURE_RULES):
+        for saved_event in read_trace_events(args.trace_in, rules):
             state = apply_event(universe, encoding, state, saved_event)
             if state.belief.size == 0:
                 raise ValueError(
@@ -149,7 +158,7 @@ def run(argv: Sequence[str] | None = None) -> None:
         for policy_score in recommendation.scores[:5]:
             score = policy_score.immediate
             question = encoding.decode_question(score.question)
-            spy_name = FIXTURE_RULES.spies[int(question.spy)].name
+            spy_name = rules.spies[int(question.spy)].name
             suffix = ""
             if recommendation.effective_depth > 1:
                 suffix = (
@@ -175,19 +184,19 @@ def run(argv: Sequence[str] | None = None) -> None:
             best = recommendation.best.immediate
             question = encoding.decode_question(best.question)
             print(
-                f"\n{FIXTURE_RULES.spies[int(question.spy)].name} "
+                f"\n{rules.spies[int(question.spy)].name} "
                 f"{question.sense.name.lower()} partitions:"
             )
             for partition in sorted(best.partitions, key=lambda item: item.boards, reverse=True):
                 print(
-                    f"  {_answer_label(encoding.decode_answer(partition.answer))}: "
+                    f"  {_answer_label(rules, encoding.decode_answer(partition.answer))}: "
                     f"{partition.pairs} pairs / {partition.boards:,} boards"
                 )
             if universe.dual_question[int(best.question)]:
                 print("\nIf the opponent reveals each first answer:")
                 for option in score_dual_payment(universe, state.belief, best.question):
                     print(
-                        f"  {_answer_label(encoding.decode_answer(option.first))}: "
+                        f"  {_answer_label(rules, encoding.decode_answer(option.first))}: "
                         f"no pay {option.no_pay_pairs} pairs / {option.no_pay_boards:,} boards; "
                         f"pay worst case {option.paid_worst_pairs} pairs / "
                         f"{option.paid_worst_boards:,} boards"
@@ -199,8 +208,8 @@ def run(argv: Sequence[str] | None = None) -> None:
             )
             for candidate in candidates:
                 print(
-                    f"  {FIXTURE_RULES.spies[candidate.ringleader].name} in "
-                    f"{FIXTURE_RULES.cities[candidate.hideout].name}: {candidate.boards:,} boards"
+                    f"  {rules.spies[candidate.ringleader].name} in "
+                    f"{rules.cities[candidate.hideout].name}: {candidate.boards:,} boards"
                 )
             continue
         if command == "t":
@@ -216,7 +225,7 @@ def run(argv: Sequence[str] | None = None) -> None:
                 history.pop()
                 state = history[-1]
                 if args.trace_out is not None:
-                    write_trace(state.trace, args.trace_out, FIXTURE_RULES)
+                    write_trace(state.trace, args.trace_out, rules)
                 print("Undid last event")
             else:
                 print("Nothing to undo")
@@ -224,22 +233,22 @@ def run(argv: Sequence[str] | None = None) -> None:
         try:
             event: ObservedEvent
             if command == "a":
-                question = _parse_question()
-                answer = _parse_answer(input("Answer (spy, landmark, or Nothing): "))
+                question = _parse_question(rules)
+                answer = _parse_answer(rules, input("Answer (spy, landmark, or Nothing): "))
                 event = QuestionAnswered(question, answer)
             elif command == "s":
-                question = _parse_question()
-                first = _parse_answer(input("First answer: "))
-                second = _parse_answer(input("Paid second answer: "))
+                question = _parse_question(rules)
+                first = _parse_answer(rules, input("First answer: "))
+                second = _parse_answer(rules, input("Paid second answer: "))
                 event = SecondAnswerBought(question, first, second)
             elif command == "x":
                 spy_name = input("Accused ringleader: ").strip().lower()
                 spy = next(
-                    (item for item in FIXTURE_RULES.spies if item.name.lower() == spy_name), None
+                    (item for item in rules.spies if item.name.lower() == spy_name), None
                 )
                 if spy is None:
                     raise ValueError(f"Unknown spy: {spy_name}")
-                hideout = _parse_city(input("Accused hideout: "))
+                hideout = _parse_city(rules, input("Accused hideout: "))
                 correct = input("Correct? [y/N]: ").strip().lower() == "y"
                 event = AccusationResolved(spy.id, hideout, correct)
             else:
@@ -254,7 +263,7 @@ def run(argv: Sequence[str] | None = None) -> None:
         state = next_state
         history.append(state)
         if args.trace_out is not None:
-            write_trace(state.trace, args.trace_out, FIXTURE_RULES)
+            write_trace(state.trace, args.trace_out, rules)
         print(f"Recorded {type(event).__name__}")
 
 
