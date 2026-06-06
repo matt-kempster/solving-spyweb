@@ -19,6 +19,16 @@ uv sync
 uv run spyweb
 ```
 
+Play a vanilla two-player hot-seat game:
+
+```bash
+uv run spyweb-play
+```
+
+The emulator generates both private boards, shows the current player's board,
+lists legal questions by number, resolves answers automatically, supports
+accusations, and clears the terminal before passing turns.
+
 Use a representative development sample:
 
 ```bash
