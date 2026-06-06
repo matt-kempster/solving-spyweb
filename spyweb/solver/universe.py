@@ -24,7 +24,7 @@ from spyweb.solver.encoding import Encoding
 UInt8Array = npt.NDArray[np.uint8]
 Int8Array = npt.NDArray[np.int8]
 EMPTY = np.uint8(255)
-CACHE_FORMAT_VERSION = 1
+CACHE_FORMAT_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -36,6 +36,7 @@ class Universe:
     answer0: UInt8Array
     answer1: UInt8Array
     dual_question: UInt8Array
+    available_question: UInt8Array
 
     @property
     def board_count(self) -> int:
@@ -70,6 +71,7 @@ class Universe:
             answer0=self.answer0,
             answer1=self.answer1,
             dual_question=self.dual_question,
+            available_question=self.available_question,
         )
 
     @classmethod
@@ -97,6 +99,7 @@ class Universe:
                 np.asarray(data["answer0"], dtype=np.uint8),
                 np.asarray(data["answer1"], dtype=np.uint8),
                 np.asarray(data["dual_question"], dtype=np.uint8),
+                np.asarray(data["available_question"], dtype=np.uint8),
             )
             if expected_board_count is not None and universe.board_count != expected_board_count:
                 raise ValueError(
@@ -148,6 +151,7 @@ def build_universe(rules: Rules, encoding: Encoding, limit: int | None = None) -
     answer0 = np.empty((encoding.question_count, board_count), dtype=np.uint8)
     answer1 = np.empty_like(answer0)
     dual = np.zeros(encoding.question_count, dtype=np.uint8)
+    available = np.zeros(encoding.question_count, dtype=np.uint8)
 
     coords = np.asarray([(city.coord.row, city.coord.col) for city in rules.cities], dtype=np.int8)
     landmark_by_coord = {
@@ -163,6 +167,11 @@ def build_universe(rules: Rules, encoding: Encoding, limit: int | None = None) -
     for q in range(encoding.question_count):
         question = encoding.decode_question(QuestionId(q))
         directions = rules.spies[int(question.spy)].directions[question.sense]
+        if not directions:
+            answer0[q].fill(encoding.nothing)
+            answer1[q].fill(encoding.nothing)
+            continue
+        available[q] = 1
         for direction_index, direction in enumerate((directions[0], directions[-1])):
             answers = _answers_for_direction(
                 locations,
@@ -183,6 +192,7 @@ def build_universe(rules: Rules, encoding: Encoding, limit: int | None = None) -
         answer0,
         answer1,
         dual,
+        available,
     )
 
 

@@ -161,6 +161,7 @@ def rank_questions(universe: Universe, belief: Belief) -> tuple[QuestionScore, .
             (
                 score_question(universe, belief, QuestionId(q))
                 for q in range(universe.answer0.shape[0])
+                if universe.available_question[q]
             ),
             key=lambda score: (score.worst_pairs, score.worst_boards),
         )

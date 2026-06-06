@@ -52,7 +52,7 @@ class Coord:
     col: int
 
 
-Directions = tuple[Direction] | tuple[Direction, Direction]
+Directions = tuple[()] | tuple[Direction] | tuple[Direction, Direction]
 
 
 @dataclass(frozen=True)

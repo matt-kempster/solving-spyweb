@@ -109,8 +109,8 @@ def _coord(value: JsonValue, context: str) -> Coord:
 
 def _directions(value: JsonValue, context: str) -> Directions:
     names = _array(value, context)
-    if len(names) not in (1, 2) or not all(isinstance(name, str) for name in names):
-        raise ValueError(f"{context} must contain one or two direction names")
+    if len(names) > 2 or not all(isinstance(name, str) for name in names):
+        raise ValueError(f"{context} must contain zero, one, or two direction names")
     try:
         parsed = tuple(Direction[cast(str, name).upper()] for name in names)
     except KeyError as error:

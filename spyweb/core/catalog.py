@@ -3,7 +3,6 @@ from spyweb.core.model import (
     CityId,
     Coord,
     Direction,
-    Directions,
     Faction,
     Landmark,
     LandmarkId,
@@ -36,32 +35,63 @@ LANDMARKS: tuple[Landmark, ...] = (
     Landmark(LandmarkId(2), "Boat", Coord(2, 3)),
 )
 
-# Development fixture only. This is not a verified physical-card transcription.
-_FIXTURE_DATA: tuple[tuple[str, int, Directions, Directions, Directions], ...] = (
-    ("Raven", 300_000, (Direction.W,), (Direction.E,), (Direction.N, Direction.S)),
-    ("Buzzard", 300_000, (Direction.E,), (Direction.W,), (Direction.N,)),
-    ("Hawk", 100_000, (Direction.W,), (Direction.E,), (Direction.S,)),
-    ("Vulture", 300_000, (Direction.W,), (Direction.E,), (Direction.N,)),
-    ("Osprey", 200_000, (Direction.E,), (Direction.W,), (Direction.S,)),
-    ("Eagle", 400_000, (Direction.E,), (Direction.W,), (Direction.NW,)),
-    ("Condor", 500_000, (Direction.E,), (Direction.N,), (Direction.W,)),
-    ("Falcon", 400_000, (Direction.N,), (Direction.W,), (Direction.S,)),
-    ("Crow", 300_000, (Direction.W,), (Direction.E,), (Direction.S,)),
+type CardData = tuple[
+    str,
+    int,
+    Direction | None,
+    Direction | None,
+    Direction | None,
+]
+
+# Transcribed from the supplied raw card data. None means the spy lacks that sense.
+_BIRD_DATA: tuple[CardData, ...] = (
+    ("Raven", 300_000, Direction.W, None, Direction.N),
+    ("Buzzard", 300_000, None, None, Direction.N),
+    ("Hawk", 100_000, Direction.W, None, Direction.S),
+    ("Vulture", 300_000, Direction.W, Direction.E, Direction.N),
+    ("Osprey", 200_000, Direction.E, Direction.W, Direction.S),
+    ("Eagle", 400_000, Direction.E, None, Direction.NW),
+    ("Condor", 500_000, Direction.E, None, Direction.W),
+    ("Falcon", 400_000, None, Direction.W, Direction.S),
+    ("Crow", 300_000, Direction.W, Direction.E, Direction.S),
 )
 
-FIXTURE_SPIES: tuple[Spy, ...] = tuple(
-    Spy(
-        SpyId(index),
-        name,
-        Faction.BIRD,
-        bounty,
-        {
-            Sense.LOOK: look,
-            Sense.HEAR: hear,
-            Sense.POINT: point,
-        },
+_SEA_DATA: tuple[CardData, ...] = (
+    ("Stingray", 500_000, Direction.E, Direction.W, Direction.N),
+    ("Urchin", 200_000, Direction.N, None, Direction.E),
+    ("Marlin", 100_000, Direction.E, None, Direction.W),
+    ("Piranha", 300_000, Direction.W, Direction.E, Direction.S),
+    ("Orca", 300_000, Direction.W, None, Direction.S),
+    ("Eel", 400_000, None, None, Direction.S),
+    ("Shark", 300_000, Direction.W, Direction.E, Direction.N),
+    ("Beluga", 300_000, Direction.W, None, None),
+    ("Leech", 400_000, None, Direction.W, Direction.N),
+)
+
+
+def _directions(direction: Direction | None) -> tuple[()] | tuple[Direction]:
+    return () if direction is None else (direction,)
+
+
+def _spies(faction: Faction, data: tuple[CardData, ...]) -> tuple[Spy, ...]:
+    return tuple(
+        Spy(
+            SpyId(index),
+            name,
+            faction,
+            bounty,
+            {
+                Sense.LOOK: _directions(look),
+                Sense.HEAR: _directions(hear),
+                Sense.POINT: _directions(point),
+            },
+        )
+        for index, (name, bounty, look, hear, point) in enumerate(data)
     )
-    for index, (name, bounty, look, hear, point) in enumerate(_FIXTURE_DATA)
-)
 
-FIXTURE_RULES = Rules(FIXTURE_SPIES, CITIES, LANDMARKS)
+
+BIRD_RULES = Rules(_spies(Faction.BIRD, _BIRD_DATA), CITIES, LANDMARKS)
+SEA_RULES = Rules(_spies(Faction.SEA, _SEA_DATA), CITIES, LANDMARKS)
+
+# Compatibility alias while callers migrate to selecting a faction explicitly.
+FIXTURE_RULES = BIRD_RULES

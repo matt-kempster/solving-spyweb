@@ -11,7 +11,6 @@ from spyweb.solver.belief import (
     pair_candidates,
     pair_count,
     rank_questions,
-    score_dual_payment,
 )
 from spyweb.solver.encoding import Encoding
 from spyweb.solver.policy import recommend_questions
@@ -25,12 +24,11 @@ def test_scores_replays_and_round_trips_cache(tmp_path: Path) -> None:
     belief = full_belief(universe)
     assert pair_count(universe, belief) == 81
     assert len(pair_candidates(universe, belief)) == 81
-    assert len(rank_questions(universe, belief)) == 27
-    dual = score_dual_payment(
-        universe, belief, encoding.question_id(Question(SpyId(0), Sense.POINT))
-    )
-    assert dual
-    assert all(option.paid_worst_boards <= option.no_pay_boards for option in dual)
+    ranking = rank_questions(universe, belief)
+    assert len(ranking) == 20
+    assert all(universe.available_question[int(score.question)] for score in ranking)
+    with pytest.raises(ValueError, match="Raven cannot hear"):
+        encoding.question_id(Question(SpyId(0), Sense.HEAR))
 
     event = QuestionAnswered(
         Question(SpyId(0), Sense.LOOK), LandmarkAnswer(FIXTURE_RULES.landmarks[0].id)
@@ -60,6 +58,8 @@ def test_numpy_answers_match_pure_rules_engine() -> None:
         board = universe.board(board_index)
         validate_board(FIXTURE_RULES, board)
         for q in range(encoding.question_count):
+            if not universe.available_question[q]:
+                continue
             question = encoding.decode_question(QuestionId(q))
             answers = answer_question(FIXTURE_RULES, board, question)
             assert universe.answer0[q, board_index] == encoding.answer_code(answers[0])

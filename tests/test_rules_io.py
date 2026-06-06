@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from spyweb.core.catalog import FIXTURE_RULES
+from spyweb.core.model import Sense
 from spyweb.core.rules import rules_fingerprint
 from spyweb.core.rules_io import read_rules, write_rules
 
@@ -17,6 +18,7 @@ def test_rules_json_round_trip_preserves_fingerprint(tmp_path: Path) -> None:
 
     assert loaded == FIXTURE_RULES
     assert rules_fingerprint(loaded) == rules_fingerprint(FIXTURE_RULES)
+    assert loaded.spies[0].directions[Sense.HEAR] == ()
 
 
 def test_rules_json_rejects_unknown_direction(tmp_path: Path) -> None:

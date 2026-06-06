@@ -60,6 +60,11 @@ def validate_rules(rules: Rules) -> None:
         raise ValueError("Spy ids must be dense and ordered")
     if [int(city.id) for city in rules.cities] != list(range(len(rules.cities))):
         raise ValueError("City ids must be dense and ordered")
+    for spy in rules.spies:
+        if set(spy.directions) != set(Sense):
+            raise ValueError(f"{spy.name} must specify every sense, including unavailable ones")
+        if any(len(directions) > 2 for directions in spy.directions.values()):
+            raise ValueError(f"{spy.name} senses may have at most two directions")
 
 
 def validate_board(rules: Rules, board: Board) -> None:
@@ -99,6 +104,10 @@ def _answer_direction(
 
 def answer_question(rules: Rules, board: Board, question: Question) -> QuestionAnswers:
     directions = rules.spies[int(question.spy)].directions[question.sense]
+    if not directions:
+        raise ValueError(
+            f"{rules.spies[int(question.spy)].name} cannot {question.sense.name.lower()}"
+        )
     first = _answer_direction(rules, board, question, 0)
     if len(directions) == 1:
         return (first,)

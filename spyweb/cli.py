@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from spyweb.audit import read_trace_events, write_trace
-from spyweb.core.catalog import FIXTURE_RULES
+from spyweb.core.catalog import BIRD_RULES, SEA_RULES
 from spyweb.core.events import (
     AccusationResolved,
     ObservedEvent,
@@ -42,8 +42,14 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--boards", type=int, default=50_000, help="boards to build; use 3265920 for all"
     )
     parser.add_argument("--cache", type=Path, help="optional .npz universe cache")
+    parser.add_argument(
+        "--faction",
+        choices=("bird", "sea"),
+        default="bird",
+        help="opponent faction to solve when --rules is not supplied",
+    )
     parser.add_argument("--rules", type=Path, help="load a versioned rules transcription JSON")
-    parser.add_argument("--export-rules", type=Path, help="export the development fixture and exit")
+    parser.add_argument("--export-rules", type=Path, help="export selected bundled rules and exit")
     parser.add_argument("--trace-in", type=Path, help="load and replay an audit JSON trace")
     parser.add_argument("--trace-out", type=Path, help="write accepted events as audit JSON")
     parser.add_argument(
@@ -91,6 +97,8 @@ def _parse_question(rules: Rules) -> Question:
         sense = Sense[input("Sense (look/hear/point): ").strip().upper()]
     except KeyError as error:
         raise ValueError("Sense must be look, hear, or point") from error
+    if not spy.directions[sense]:
+        raise ValueError(f"{spy.name} cannot {sense.name.lower()}")
     return Question(spy.id, sense)
 
 
@@ -120,7 +128,8 @@ def _load_or_build(args: argparse.Namespace, rules: Rules, encoding: Encoding) -
 
 def run(argv: Sequence[str] | None = None) -> None:
     args = _parse_args(argv)
-    rules = FIXTURE_RULES if args.rules is None else read_rules(args.rules)
+    bundled_rules = BIRD_RULES if args.faction == "bird" else SEA_RULES
+    rules = bundled_rules if args.rules is None else read_rules(args.rules)
     if args.export_rules is not None:
         write_rules(rules, args.export_rules)
         print(f"Wrote rules transcription to {args.export_rules}")

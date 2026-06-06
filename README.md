@@ -8,8 +8,9 @@ The project separates:
 - `spyweb.solver`: compact NumPy board universe, filtering, and scoring
 - `spyweb.cli`: interactive physical-game solving assistant
 
-The bundled card directions are explicitly a development fixture. They must be
-replaced with a verified transcription before recommendations are authoritative.
+The bundled bird and sea card data comes from the supplied transcription.
+An unavailable sense is represented explicitly as an empty direction list and
+is never offered as a legal question.
 
 ## Setup
 
@@ -22,13 +23,14 @@ Use a representative development sample:
 
 ```bash
 uv run spyweb --boards 50000
+uv run spyweb --faction sea --boards 50000
 ```
 
-Export the development fixture to an editable, versioned transcription file,
-then load that file after correcting it from the physical cards:
+Export either bundled faction to an editable, versioned transcription file:
 
 ```bash
 uv run spyweb --export-rules rules.json
+uv run spyweb --faction sea --export-rules sea-rules.json
 uv run spyweb --rules rules.json --boards 50000
 ```
 
