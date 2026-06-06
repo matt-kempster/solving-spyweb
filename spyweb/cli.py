@@ -4,6 +4,7 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
+from spyweb.audit import write_trace
 from spyweb.core.catalog import FIXTURE_RULES
 from spyweb.core.events import (
     AccusationResolved,
@@ -38,6 +39,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--boards", type=int, default=50_000, help="boards to build; use 3265920 for all"
     )
     parser.add_argument("--cache", type=Path, help="optional .npz universe cache")
+    parser.add_argument("--trace-out", type=Path, help="write accepted events as audit JSON")
     return parser.parse_args(argv)
 
 
@@ -165,6 +167,8 @@ def run(argv: Sequence[str] | None = None) -> None:
             if len(history) > 1:
                 history.pop()
                 state = history[-1]
+                if args.trace_out is not None:
+                    write_trace(state.trace, args.trace_out)
                 print("Undid last event")
             else:
                 print("Nothing to undo")
@@ -201,6 +205,8 @@ def run(argv: Sequence[str] | None = None) -> None:
             continue
         state = next_state
         history.append(state)
+        if args.trace_out is not None:
+            write_trace(state.trace, args.trace_out)
         print(f"Recorded {type(event).__name__}")
 
 

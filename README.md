@@ -30,6 +30,12 @@ Persist and reuse a complete-universe cache:
 uv run spyweb --boards 3265920 --cache .cache/spyweb-full.npz
 ```
 
+Persist an auditable JSON trace while playing:
+
+```bash
+uv run spyweb --boards 50000 --trace-out game.json
+```
+
 Within the assistant:
 
 - `a`: record an ordinary or first dual-direction answer
