@@ -17,10 +17,10 @@ section { min-width: 0; }
 .component-grid { display: grid; grid-template-columns: repeat(3, minmax(70px, 1fr)); gap: .4rem; margin-top: .7rem; }
 .component-bin { min-height: 92px; border-style: dashed; }
 .spy-card { position: relative; box-sizing: border-box; min-height: 82px; border: 1px solid #587898; border-radius: 5px; padding: 1.4rem .5rem; background: #203248; text-align: center; }
-.spy-card.with-art { overflow: hidden; min-height: 118px; padding-top: 4.8rem; }
-.card-art { position: absolute; inset: 0 0 auto 0; width: 100%; height: 4.5rem; object-fit: cover; opacity: .82; }
-.spy-card.with-art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, transparent 0, rgba(32, 50, 72, .15) 45%, rgba(32, 50, 72, .92) 72%); pointer-events: none; }
-.spy-card.with-art > :not(.card-art) { position: relative; z-index: 1; }
+.spy-card.with-art { overflow: hidden; min-height: 0; padding: 0; background: #111821; }
+.card-art { display: block; width: 100%; height: auto; opacity: 1; }
+.spy-card.with-art > strong,
+.spy-card.with-art > .muted { display: none; }
 .spy-card strong { color: #ffd47c; }
 .spy-card.draggable { cursor: grab; }
 .spy-card.hideout { display: grid; place-items: center; color: #ffd47c; }
