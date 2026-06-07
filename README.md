@@ -111,15 +111,18 @@ accusation guarantees a campaign-critical outcome.
 Run a repeatable AI-vs-AI strategy and faction benchmark:
 
 ```bash
-uv run spyweb-benchmark --campaigns 20 --boards 50000
+uv run spyweb-benchmark --campaigns 20 --max-depth 1
 ```
 
 The benchmark runs every selected Bird strategy against every selected Sea
 strategy, reports campaign win rates with 95% confidence intervals, and uses
 the same rules engine, beliefs, questions, accusations, payments, extra
 actions, bounties, and `$1,000,000` campaign target as interactive play.
-Development runs draw true private boards from the sampled universe so their
-beliefs remain valid. Use `--boards 3265920` for the exact board universe and
+The benchmark uses all `3,265,920` legal boards per faction by default. The
+ringleader is selected uniformly first; random setup samples a legal layout
+conditional on that ringleader, while defensive setup samples and scores
+layouts without choosing the leader. Use `--boards 50000` only for approximate
+development runs, `--no-cache` to rebuild solver universes in memory, and
 `--json-out results.json` for machine-readable results.
 
 Use a representative development sample:

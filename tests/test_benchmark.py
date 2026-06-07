@@ -1,13 +1,15 @@
 from pathlib import Path
+from random import Random
 
 from spyweb.benchmark import (
     STRATEGIES,
     Matchup,
+    _choose_board,
     load_assets,
     run_matrix,
     simulate_campaign,
 )
-from spyweb.core.model import Faction
+from spyweb.core.model import Faction, SpyId
 
 
 def test_benchmark_assets_use_sampled_universe_boards(tmp_path: Path) -> None:
@@ -16,6 +18,27 @@ def test_benchmark_assets_use_sampled_universe_boards(tmp_path: Path) -> None:
 
     assert knowledge.universe.board_count == 500
     assert knowledge.encoding.rules.spies[0].faction is Faction.BIRD
+
+
+def test_benchmark_can_build_without_writing_cache(tmp_path: Path) -> None:
+    assets = load_assets(tmp_path, 500, use_cache=False)
+
+    assert assets.bird.board_count == 500
+    assert not tuple(tmp_path.iterdir())
+
+
+def test_setup_policy_preserves_randomly_selected_ringleader(tmp_path: Path) -> None:
+    assets = load_assets(tmp_path, 2_000)
+
+    for name in ("frugal", "defensive"):
+        expected = SpyId(Random(3).randrange(9))
+        board = _choose_board(
+            assets.bird,
+            assets.bird_encoding,
+            STRATEGIES[name],
+            Random(3),
+        )
+        assert board.ringleader == expected
 
 
 def test_simulates_ai_campaign_on_small_universe(tmp_path: Path) -> None:

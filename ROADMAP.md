@@ -37,6 +37,11 @@ UI backed by the same authoritative rules and AI modules.
   payment, extra-action, and defensive-layout policies. Report confidence
   intervals, head-to-head grids, Bird-versus-Sea faction advantage, and results
   with factions swapped so strategy strength is separated from faction strength.
+- Optimize exact-universe benchmark policy evaluation. A single depth-1 exact
+  campaign currently takes more than nine minutes because question partitions
+  are rescored over millions of boards at every action. Cache reusable policy
+  decisions and replace repeated full-belief scans with a faster partition
+  representation before treating large exact matrices as routine.
 - Replace the current question-only bounded minimax objective with a race-aware
   policy that models both players' progress, bounties, campaign cash, optional
   payments, accusations, and turn order.

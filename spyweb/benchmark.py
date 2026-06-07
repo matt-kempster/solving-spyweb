@@ -179,10 +179,14 @@ def _layout_score(universe: Universe, encoding: Encoding, board_id: int) -> tupl
 def _choose_board(
     universe: Universe, encoding: Encoding, strategy: Strategy, random: Random
 ) -> Board:
+    ringleader = random.randrange(len(encoding.rules.spies))
+    eligible = np.flatnonzero(universe.ringleader == ringleader)
+    if not eligible.size:
+        raise ValueError(f"Universe contains no boards for ringleader {ringleader}")
     if strategy.setup is SetupPolicy.RANDOM:
-        return universe.board(random.randrange(universe.board_count))
-    sample_count = min(strategy.defensive_samples, universe.board_count)
-    candidates = [random.randrange(universe.board_count) for _ in range(sample_count)]
+        return universe.board(int(random.choice(eligible)))
+    sample_count = min(strategy.defensive_samples, int(eligible.size))
+    candidates = [int(random.choice(eligible)) for _ in range(sample_count)]
     best_score = max(_layout_score(universe, encoding, board_id) for board_id in candidates)
     pool = [
         board_id
@@ -412,10 +416,12 @@ def _with_max_depth(strategy: Strategy, max_depth: int | None) -> Strategy:
     return strategy if max_depth is None else replace(strategy, max_depth=max_depth)
 
 
-def _load_universe(rules: Rules, cache: Path, boards: int) -> tuple[Universe, Encoding]:
+def _load_universe(
+    rules: Rules, cache: Path, boards: int, *, use_cache: bool
+) -> tuple[Universe, Encoding]:
     encoding = Encoding(rules)
     expected = universe_board_count(rules, boards)
-    if cache.exists():
+    if use_cache and cache.exists():
         try:
             return (
                 Universe.load(
@@ -428,13 +434,18 @@ def _load_universe(rules: Rules, cache: Path, boards: int) -> tuple[Universe, En
         except ValueError:
             pass
     universe = build_universe(rules, encoding, limit=boards)
-    universe.save(cache)
+    if use_cache:
+        universe.save(cache)
     return universe, encoding
 
 
-def load_assets(cache_dir: Path, boards: int) -> BenchmarkAssets:
-    bird, bird_encoding = _load_universe(BIRD_RULES, cache_dir / f"bird-{boards}.npz", boards)
-    sea, sea_encoding = _load_universe(SEA_RULES, cache_dir / f"sea-{boards}.npz", boards)
+def load_assets(cache_dir: Path, boards: int, *, use_cache: bool = True) -> BenchmarkAssets:
+    bird, bird_encoding = _load_universe(
+        BIRD_RULES, cache_dir / f"bird-{boards}.npz", boards, use_cache=use_cache
+    )
+    sea, sea_encoding = _load_universe(
+        SEA_RULES, cache_dir / f"sea-{boards}.npz", boards, use_cache=use_cache
+    )
     return BenchmarkAssets(bird, sea, bird_encoding, sea_encoding)
 
 
@@ -482,9 +493,19 @@ def _print_results(results: Sequence[Aggregate]) -> None:
 def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run Spy Web AI-vs-AI strategy benchmarks")
     parser.add_argument("--campaigns", type=int, default=10, help="campaigns per matrix cell")
-    parser.add_argument("--boards", type=int, default=50_000, help="boards per faction universe")
+    parser.add_argument(
+        "--boards",
+        type=int,
+        default=universe_board_count(BIRD_RULES),
+        help="boards per faction universe; defaults to every legal board",
+    )
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--cache-dir", type=Path, default=Path(".cache/benchmark"))
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="build solver universes in memory without reading or writing cache files",
+    )
     parser.add_argument(
         "--strategies",
         default="frugal,current,tempo",
@@ -506,8 +527,9 @@ def run(argv: Sequence[str] | None = None) -> tuple[Aggregate, ...]:
         strategies = [_with_max_depth(STRATEGIES[name], args.max_depth) for name in names]
     except KeyError as error:
         raise SystemExit(f"Unknown strategy: {error.args[0]}") from error
-    print(f"Loading {args.boards:,}-board Bird and Sea benchmark universes...")
-    assets = load_assets(args.cache_dir, args.boards)
+    cache_label = "without cache" if args.no_cache else f"using {args.cache_dir}"
+    print(f"Loading {args.boards:,}-board Bird and Sea solver universes {cache_label}...")
+    assets = load_assets(args.cache_dir, args.boards, use_cache=not args.no_cache)
     results = run_matrix(
         assets,
         strategies,
