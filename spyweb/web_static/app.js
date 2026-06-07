@@ -64,6 +64,14 @@ function setupLayout() {
   return setupLayouts[key];
 }
 
+function shuffleSetupLayout() {
+  const layout = setupLayout();
+  for (let index = layout.length - 1; index > 0; index--) {
+    const other = Math.floor(Math.random() * (index + 1));
+    [layout[index], layout[other]] = [layout[other], layout[index]];
+  }
+}
+
 function renderPrivateBoard(me, ownByName) {
   if (!state.setupEnabled || state.setupReady[state.viewer]) {
     $("board").innerHTML = me.board.map(cell => `<div class="cell"><strong>${cell.city}</strong>${cell.occupant === "HIDEOUT" ? cardHtml({hideout: true}) : cardHtml(ownByName[cell.occupant])}</div>`).join("");
@@ -111,7 +119,11 @@ function renderActions() {
     if (state.setupReady[state.viewer]) {
       $("actions").innerHTML = "<p>Your layout is locked. Waiting for the other player.</p>";
     } else {
-      $("actions").innerHTML = `<p>Arrange your eight visible spies and hideout, then lock the layout.</p><button id="lock-layout">Lock layout</button>`;
+      $("actions").innerHTML = `<p>Arrange your eight visible spies and hideout, then lock the layout.</p><button id="shuffle-layout">Shuffle</button><button id="lock-layout">Lock layout</button>`;
+      $("shuffle-layout").onclick = () => {
+        shuffleSetupLayout();
+        render();
+      };
       $("lock-layout").onclick = () => {
         const ids = Object.fromEntries(state.ownCards.map(card => [card.name, card.id]));
         act({type: "set_layout", occupants: setupLayout().map(occupant => occupant === "HIDEOUT" ? -1 : ids[occupant])});
