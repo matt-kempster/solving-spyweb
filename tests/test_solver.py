@@ -79,3 +79,20 @@ def test_policy_uses_bounded_lookahead_and_reports_fallback() -> None:
     deeper = recommend_questions(universe, narrowed, depth=2, max_lookahead_boards=100)
     assert deeper.effective_depth == 2
     assert deeper.best.worst_leaf_pairs <= deeper.best.immediate.worst_pairs
+
+
+def test_policy_limits_only_recursive_question_candidates() -> None:
+    encoding = Encoding(FIXTURE_RULES)
+    universe = build_universe(FIXTURE_RULES, encoding, 500)
+    belief = full_belief(universe)
+
+    result = recommend_questions(
+        universe,
+        belief,
+        depth=2,
+        max_lookahead_boards=500,
+        branching_limit=2,
+    )
+
+    assert result.effective_depth == 2
+    assert len(result.scores) == int(universe.available_question.sum())

@@ -14,6 +14,7 @@ from spyweb.ai import (
     observe_second,
     recommended_question,
     reset_ai_knowledge,
+    should_buy_extra_for_accusation,
     should_buy_second,
 )
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
@@ -284,7 +285,7 @@ def _ai_resolve_second(state: GameState, knowledge: AiKnowledge) -> tuple[GameSt
     event = state.history[-1]
     assert isinstance(event, AskedQuestion)
     should_buy = state.actor.money >= ACTION_COST and should_buy_second(
-        knowledge, pending.question, event.answer
+        state, knowledge, pending.question, event.answer
     )
     if not should_buy:
         print(f"{state.actor.name} declines the second answer.")
@@ -384,7 +385,12 @@ def run(argv: Sequence[str] | None = None) -> None:
                 continue
             if state.phase is TurnPhase.POST_ACTION:
                 if ai_turn:
-                    state = end_turn(state)
+                    assert ai_knowledge is not None
+                    state = (
+                        buy_extra_action(state)
+                        if should_buy_extra_for_accusation(state, ai_knowledge)
+                        else end_turn(state)
+                    )
                 else:
                     state = _post_action(state, no_clear=args.no_clear, ai_game=args.ai)
                 continue

@@ -12,11 +12,13 @@ from typing import cast
 from spyweb.ai import (
     AiKnowledge,
     accusation_candidate,
+    ai_search_depth,
     load_ai_knowledge,
     observe_first,
     observe_second,
     recommended_question,
     reset_ai_knowledge,
+    should_buy_extra_for_accusation,
     should_buy_second,
 )
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
@@ -181,6 +183,7 @@ def project_campaign(
             else {
                 "boards": int(ai_knowledge.belief.size),
                 "pairs": pair_count(ai_knowledge.universe, ai_knowledge.belief),
+                "depth": ai_search_depth(int(ai_knowledge.belief.size)),
             }
         ),
         "aiQuestion": (
@@ -210,7 +213,12 @@ def project_campaign(
             {"id": int(city.id), "name": city.name} for city in state.players[viewer].rules.cities
         ],
         "landmarks": [
-            {"id": int(landmark.id), "name": landmark.name}
+            {
+                "id": int(landmark.id),
+                "name": landmark.name,
+                "row": landmark.coord.row,
+                "col": landmark.coord.col,
+            }
             for landmark in state.players[viewer].rules.landmarks
         ],
         "questions": [
@@ -341,7 +349,7 @@ class WebSession:
                 if pending is None or not isinstance(event, AskedQuestion):
                     raise RuntimeError("Invalid AI second-answer state")
                 if state.actor.money >= ACTION_COST and should_buy_second(
-                    self.ai_knowledge, pending.question, event.answer
+                    state, self.ai_knowledge, pending.question, event.answer
                 ):
                     state = buy_second_answer(state)
                     second = state.history[-1]
@@ -355,6 +363,8 @@ class WebSession:
                     )
                 else:
                     state = decline_second_answer(state)
+            elif should_buy_extra_for_accusation(state, self.ai_knowledge):
+                state = buy_extra_action(state)
             else:
                 state = end_turn(state)
             self.campaign = CampaignState(state, self.campaign.round_number, self.campaign.winner)

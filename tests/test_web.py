@@ -21,10 +21,14 @@ def test_projection_only_reveals_viewers_private_board() -> None:
     assert isinstance(record["ownCards"], list)
     assert isinstance(record["opponentCards"], list)
     assert isinstance(record["landmarks"], list)
-    assert {item["name"] for item in record["landmarks"] if isinstance(item, dict)} == {
-        "Car",
-        "Plane",
-        "Boat",
+    assert {
+        (item["name"], item["row"], item["col"])
+        for item in record["landmarks"]
+        if isinstance(item, dict)
+    } == {
+        ("Car", 0, -1),
+        ("Plane", -1, 2),
+        ("Boat", 2, 3),
     }
 
 

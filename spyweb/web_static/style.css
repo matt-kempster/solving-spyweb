@@ -10,6 +10,9 @@ section { min-width: 0; }
 .cell, .dropzone { min-height: 92px; border: 1px solid #38506a; border-radius: 6px; padding: .45rem; background: #182534; }
 .cell strong { display: block; color: #8fc7ff; font-size: .8rem; }
 .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: .4rem; }
+.scratch-grid { display: grid; grid-template-columns: repeat(5, minmax(45px, 1fr)); grid-template-rows: repeat(4, auto); gap: .35rem; }
+.scratch-grid .cell { min-width: 0; }
+.landmark { display: grid; place-items: center; min-height: 70px; border: 1px dashed #8a7447; border-radius: 6px; color: #ffd47c; background: #292619; font-weight: bold; }
 .spy-card { position: relative; box-sizing: border-box; min-height: 82px; border: 1px solid #587898; border-radius: 5px; padding: 1.4rem .5rem; background: #203248; text-align: center; }
 .spy-card strong { color: #ffd47c; }
 .spy-card.draggable { cursor: grab; }

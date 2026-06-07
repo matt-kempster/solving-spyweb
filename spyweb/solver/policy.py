@@ -35,6 +35,7 @@ def _best_leaf_value(
     belief: Belief,
     depth: int,
     cache: dict[tuple[int, bytes], tuple[int, int]],
+    branching_limit: int | None,
 ) -> tuple[int, int]:
     current = (pair_count(universe, belief), int(belief.size))
     if depth == 0 or current[0] <= 1:
@@ -45,8 +46,8 @@ def _best_leaf_value(
         return cached
     best = min(
         (
-            _question_leaf_value(universe, belief, score, depth, cache)
-            for score in rank_questions(universe, belief)
+            _question_leaf_value(universe, belief, score, depth, cache, branching_limit)
+            for score in _limited_questions(universe, belief, branching_limit)
         ),
         default=current,
     )
@@ -60,6 +61,7 @@ def _question_leaf_value(
     immediate: QuestionScore,
     depth: int,
     cache: dict[tuple[int, bytes], tuple[int, int]],
+    branching_limit: int | None,
 ) -> tuple[int, int]:
     worst = (0, 0)
     for partition in immediate.partitions:
@@ -67,10 +69,17 @@ def _question_leaf_value(
         child = (
             (partition.pairs, partition.boards)
             if bucket.size == belief.size
-            else _best_leaf_value(universe, bucket, depth - 1, cache)
+            else _best_leaf_value(universe, bucket, depth - 1, cache, branching_limit)
         )
         worst = max(worst, child)
     return worst
+
+
+def _limited_questions(
+    universe: Universe, belief: Belief, branching_limit: int | None
+) -> tuple[QuestionScore, ...]:
+    ranked = rank_questions(universe, belief)
+    return ranked if branching_limit is None else ranked[:branching_limit]
 
 
 def recommend_questions(
@@ -79,9 +88,12 @@ def recommend_questions(
     *,
     depth: int = 1,
     max_lookahead_boards: int = 10_000,
+    branching_limit: int | None = None,
 ) -> Recommendation:
     if depth < 1:
         raise ValueError("Policy depth must be at least 1")
+    if branching_limit is not None and branching_limit < 1:
+        raise ValueError("Branching limit must be at least 1")
     effective_depth = depth if belief.size <= max_lookahead_boards else 1
     cache: dict[tuple[int, bytes], tuple[int, int]] = {}
     scores = tuple(
@@ -89,7 +101,14 @@ def recommend_questions(
             (
                 PolicyScore(
                     immediate,
-                    *_question_leaf_value(universe, belief, immediate, effective_depth, cache),
+                    *_question_leaf_value(
+                        universe,
+                        belief,
+                        immediate,
+                        effective_depth,
+                        cache,
+                        branching_limit,
+                    ),
                 )
                 for immediate in rank_questions(universe, belief)
             ),

@@ -78,6 +78,13 @@ base at `.cache/play-ai-bird.npz`. Later games load that cache. During play,
 the emulator displays the opponent faction's look/hear/point directions and
 both players' accumulated observation knowledge bases.
 
+The AI scores every legal question at the root using adversarial minimax. It
+searches one question ahead above `250,000` possible boards, two questions
+ahead down to `25,000`, and three questions ahead below that, with the five
+best immediate questions considered at recursive nodes. Payments are
+campaign-aware and conservative: the AI only pays when the resulting immediate
+accusation guarantees a campaign-critical outcome.
+
 Use a representative development sample:
 
 ```bash
