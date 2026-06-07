@@ -5,7 +5,7 @@ h1, h2 { margin: .5rem 0; }
 h1 { font-size: 1.4rem; }
 h2 { font-size: 1.05rem; margin-top: 1.3rem; }
 h4 { margin: .7rem 0 .25rem; font-size: .9rem; color: #ffd47c; }
-main { display: grid; grid-template-columns: minmax(260px, 320px) max-content max-content; justify-content: center; gap: 1.5rem; padding: .8rem; }
+main { display: grid; grid-template-columns: minmax(260px, 320px) max-content max-content; justify-content: center; gap: 2.5rem; padding: 1rem 1.5rem; }
 section { min-width: 0; }
 .opponent-column, .player-column { width: max-content; }
 .analysis-column h2:first-child,
@@ -17,7 +17,7 @@ section { min-width: 0; }
 .cell, .dropzone { box-sizing: border-box; min-height: 92px; border: 1px solid #38506a; border-radius: 6px; padding: .45rem; background: #182534; }
 .cell strong { display: block; color: #8fc7ff; font-size: .8rem; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, var(--card-width)); justify-content: start; gap: var(--grid-gap); }
-.notes-workspace { display: grid; grid-template-columns: max-content max-content; align-items: start; gap: 1.5rem; }
+.notes-workspace { display: grid; grid-template-columns: max-content max-content; align-items: start; gap: 2.5rem; }
 .notes-tray { min-width: 0; }
 .scratch-grid { position: relative; display: grid; grid-template-columns: repeat(3, var(--card-width)); grid-template-rows: repeat(3, var(--drop-cell-height)); gap: var(--grid-gap); margin-top: 1.4rem; }
 .scratch-grid .cell { box-sizing: border-box; height: var(--drop-cell-height); min-width: 0; overflow: hidden; }
