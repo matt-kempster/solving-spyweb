@@ -95,6 +95,16 @@ def recommend_questions(
     if branching_limit is not None and branching_limit < 1:
         raise ValueError("Branching limit must be at least 1")
     effective_depth = depth if belief.size <= max_lookahead_boards else 1
+    ranked = rank_questions(universe, belief)
+    if effective_depth == 1:
+        return Recommendation(
+            depth,
+            effective_depth,
+            tuple(
+                PolicyScore(score, score.worst_pairs, score.worst_boards)
+                for score in ranked
+            ),
+        )
     cache: dict[tuple[int, bytes], tuple[int, int]] = {}
     scores = tuple(
         sorted(
@@ -110,7 +120,7 @@ def recommend_questions(
                         branching_limit,
                     ),
                 )
-                for immediate in rank_questions(universe, belief)
+                for immediate in ranked
             ),
             key=lambda score: (
                 score.worst_leaf_pairs,

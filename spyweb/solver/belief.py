@@ -60,19 +60,48 @@ def full_belief(universe: Universe) -> Belief:
 
 def pair_count(universe: Universe, belief: Belief) -> int:
     keys = universe.ringleader[belief] * universe.city_count + universe.hideout[belief]
-    return int(np.unique(keys).size)
+    return int(np.count_nonzero(np.bincount(keys, minlength=universe.city_count**2)))
 
 
 def pair_candidates(universe: Universe, belief: Belief) -> tuple[PairCandidate, ...]:
     keys = universe.ringleader[belief] * universe.city_count + universe.hideout[belief]
-    unique, counts = np.unique(keys, return_counts=True)
+    counts = np.bincount(keys, minlength=universe.city_count**2)
     return tuple(
         PairCandidate(
             int(key) // universe.city_count,
             int(key) % universe.city_count,
             int(count),
         )
-        for key, count in zip(unique, counts, strict=True)
+        for key, count in enumerate(counts)
+        if count
+    )
+
+
+def _score_normal_question(
+    universe: Universe, belief: Belief, question: QuestionId
+) -> QuestionScore:
+    pair_total = universe.city_count**2
+    answers = universe.answer0[int(question), belief]
+    answer_count = int(np.max(answers)) + 1
+    pair_keys = universe.ringleader[belief] * universe.city_count + universe.hideout[belief]
+    boards_by_answer = np.bincount(answers, minlength=answer_count)
+    joint_keys = answers.astype(np.uint16) * pair_total + pair_keys.astype(np.uint16)
+    pairs_by_answer = np.count_nonzero(
+        np.bincount(joint_keys, minlength=answer_count * pair_total).reshape(
+            answer_count, pair_total
+        ),
+        axis=1,
+    )
+    partitions = tuple(
+        Partition(AnswerCode(int(answer)), int(boards), int(pairs_by_answer[answer]))
+        for answer, boards in enumerate(boards_by_answer)
+        if boards
+    )
+    return QuestionScore(
+        question,
+        max(partition.boards for partition in partitions),
+        max(partition.pairs for partition in partitions),
+        partitions,
     )
 
 
@@ -99,6 +128,8 @@ def filter_paid_second(
 
 
 def score_question(universe: Universe, belief: Belief, question: QuestionId) -> QuestionScore:
+    if not universe.dual_question[int(question)]:
+        return _score_normal_question(universe, belief, question)
     answers = np.unique(
         np.concatenate(
             (universe.answer0[int(question), belief], universe.answer1[int(question), belief])

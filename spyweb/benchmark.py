@@ -168,6 +168,77 @@ class BenchmarkAssets:
             np.arange(universe.board_count, dtype=np.uint32),
         )
 
+    def sampled_knowledge_of(
+        self,
+        faction: Faction,
+        *,
+        true_board: int,
+        boards: int,
+        random: Random,
+    ) -> AiKnowledge:
+        knowledge = self.knowledge_of(faction)
+        universe = knowledge.universe
+        if boards <= 0 or boards >= universe.board_count:
+            return knowledge
+        if true_board < 0 or true_board >= universe.board_count:
+            raise ValueError(f"True board is outside the {faction} universe: {true_board}")
+        other_ids = random.sample(range(universe.board_count - 1), boards - 1)
+        belief = np.fromiter(
+            (
+                board_id if board_id < true_board else board_id + 1
+                for board_id in other_ids
+            ),
+            dtype=np.uint32,
+            count=boards - 1,
+        )
+        belief = np.append(belief, np.uint32(true_board))
+        return AiKnowledge(universe, knowledge.encoding, belief)
+
+
+type Observation = tuple[int, ...]
+type PolicyKey = tuple[Faction, SearchPolicy, int, int, tuple[Observation, ...]]
+type PolicyCache = dict[PolicyKey, PairCandidate | Question]
+
+
+@dataclass(frozen=True)
+class TrackedKnowledge:
+    ai: AiKnowledge
+    cache_scope: int = 0
+    observations: tuple[Observation, ...] = ()
+
+    def observed_first(self, question: Question, answer: Answer) -> TrackedKnowledge:
+        qid = self.ai.encoding.question_id(question)
+        code = self.ai.encoding.answer_code(answer)
+        return TrackedKnowledge(
+            observe_first(self.ai, question, answer),
+            self.cache_scope,
+            (*self.observations, (0, int(qid), int(code))),
+        )
+
+    def observed_second(
+        self, question: Question, first: Answer, second: Answer
+    ) -> TrackedKnowledge:
+        qid = self.ai.encoding.question_id(question)
+        first_code = self.ai.encoding.answer_code(first)
+        second_code = self.ai.encoding.answer_code(second)
+        return TrackedKnowledge(
+            observe_second(self.ai, question, first, second),
+            self.cache_scope,
+            (*self.observations, (1, int(qid), int(first_code), int(second_code))),
+        )
+
+    def observed_accusation(self, event: Accusation) -> TrackedKnowledge:
+        return TrackedKnowledge(
+            observe_accusation(
+                self.ai, event.ringleader, event.hideout, correct=event.correct
+            ),
+            self.cache_scope,
+            (
+                *self.observations,
+                (2, int(event.ringleader), int(event.hideout), int(event.correct)),
+            ),
+        )
+
 
 def _layout_score(universe: Universe, encoding: Encoding, board_id: int) -> tuple[int, int]:
     answers = universe.answer0[:, board_id]
@@ -179,12 +250,18 @@ def _layout_score(universe: Universe, encoding: Encoding, board_id: int) -> tupl
 def _choose_board(
     universe: Universe, encoding: Encoding, strategy: Strategy, random: Random
 ) -> Board:
+    return universe.board(_choose_board_id(universe, encoding, strategy, random))
+
+
+def _choose_board_id(
+    universe: Universe, encoding: Encoding, strategy: Strategy, random: Random
+) -> int:
     ringleader = random.randrange(len(encoding.rules.spies))
     eligible = np.flatnonzero(universe.ringleader == ringleader)
     if not eligible.size:
         raise ValueError(f"Universe contains no boards for ringleader {ringleader}")
     if strategy.setup is SetupPolicy.RANDOM:
-        return universe.board(int(random.choice(eligible)))
+        return int(random.choice(eligible))
     sample_count = min(strategy.defensive_samples, int(eligible.size))
     candidates = [int(random.choice(eligible)) for _ in range(sample_count)]
     best_score = max(_layout_score(universe, encoding, board_id) for board_id in candidates)
@@ -193,29 +270,47 @@ def _choose_board(
         for board_id in candidates
         if _layout_score(universe, encoding, board_id) == best_score
     ]
-    return universe.board(random.choice(pool))
+    return random.choice(pool)
 
 
-def _choose_action(knowledge: AiKnowledge, strategy: Strategy) -> PairCandidate | Question:
-    candidates = pair_candidates(knowledge.universe, knowledge.belief)
+def _choose_action(
+    knowledge: TrackedKnowledge, strategy: Strategy, cache: PolicyCache
+) -> PairCandidate | Question:
+    faction = knowledge.ai.encoding.rules.spies[0].faction
+    key = (
+        faction,
+        strategy.search,
+        strategy.max_depth,
+        knowledge.cache_scope,
+        knowledge.observations,
+    )
+    cached = cache.get(key)
+    if cached is not None:
+        return cached
+    ai = knowledge.ai
+    candidates = pair_candidates(ai.universe, ai.belief)
     if len(candidates) == 1:
+        cache[key] = candidates[0]
         return candidates[0]
     depth = (
-        ai_search_depth(int(knowledge.belief.size))
+        ai_search_depth(int(ai.belief.size))
         if strategy.search is SearchPolicy.ADAPTIVE
         else 1
     )
     depth = min(depth, strategy.max_depth)
     recommendation = recommend_questions(
-        knowledge.universe,
-        knowledge.belief,
+        ai.universe,
+        ai.belief,
         depth=depth,
-        max_lookahead_boards=int(knowledge.belief.size),
+        max_lookahead_boards=int(ai.belief.size),
         branching_limit=5,
     )
     if recommendation.best.immediate.worst_pairs >= len(candidates):
-        return max(candidates, key=lambda candidate: candidate.boards)
-    return knowledge.encoding.decode_question(recommendation.best.immediate.question)
+        action: PairCandidate | Question = max(candidates, key=lambda candidate: candidate.boards)
+    else:
+        action = ai.encoding.decode_question(recommendation.best.immediate.question)
+    cache[key] = action
+    return action
 
 
 def _adversarial_first_index(
@@ -250,24 +345,59 @@ def _new_round(
     random: Random,
     money: tuple[int, int],
     turn: int,
-) -> GameState:
-    return GameState(
+) -> tuple[GameState, tuple[int, int]]:
+    board_ids = (
+        _choose_board_id(assets.bird, assets.bird_encoding, strategies[0], random),
+        _choose_board_id(assets.sea, assets.sea_encoding, strategies[1], random),
+    )
+    state = GameState(
         (
             PlayerState(
                 strategies[0].name,
                 BIRD_RULES,
-                _choose_board(assets.bird, assets.bird_encoding, strategies[0], random),
+                assets.bird.board(board_ids[0]),
                 money[0],
             ),
             PlayerState(
                 strategies[1].name,
                 SEA_RULES,
-                _choose_board(assets.sea, assets.sea_encoding, strategies[1], random),
+                assets.sea.board(board_ids[1]),
                 money[1],
             ),
         ),
         turn=turn,
     )
+    return state, board_ids
+
+
+def _round_knowledge(
+    assets: BenchmarkAssets,
+    board_ids: tuple[int, int],
+    *,
+    belief_boards: int,
+    random: Random,
+    cache_scopes: tuple[int, int],
+) -> list[TrackedKnowledge]:
+    return [
+        TrackedKnowledge(
+            assets.sampled_knowledge_of(
+                Faction.SEA,
+                true_board=board_ids[1],
+                boards=belief_boards,
+                random=random,
+            ),
+            cache_scopes[0],
+        ),
+        TrackedKnowledge(
+            assets.sampled_knowledge_of(
+                Faction.BIRD,
+                true_board=board_ids[0],
+                boards=belief_boards,
+                random=random,
+            ),
+            cache_scopes[1],
+        ),
+    ]
 
 
 def simulate_campaign(
@@ -278,11 +408,24 @@ def simulate_campaign(
     starting_player: int = 0,
     max_rounds: int = 100,
     max_actions_per_round: int = 1_000,
+    policy_cache: PolicyCache | None = None,
+    belief_boards: int = 1_000,
 ) -> CampaignMetrics:
     random = Random(seed)
     strategies = (matchup.bird, matchup.sea)
-    knowledge = [assets.knowledge_of(Faction.SEA), assets.knowledge_of(Faction.BIRD)]
-    state = _new_round(assets, strategies, random, (100_000, 100_000), starting_player)
+    cache: PolicyCache = {} if policy_cache is None else policy_cache
+    state, board_ids = _new_round(
+        assets, strategies, random, (100_000, 100_000), starting_player
+    )
+    exact_beliefs = belief_boards <= 0 or belief_boards >= assets.bird.board_count
+    scopes = (0, 0) if exact_beliefs else (seed * 1_000, seed * 1_000 + 1)
+    knowledge = _round_knowledge(
+        assets,
+        board_ids,
+        belief_boards=belief_boards,
+        random=random,
+        cache_scopes=scopes,
+    )
     actions = [0, 0]
     questions = [0, 0]
     accusations = [0, 0]
@@ -296,13 +439,14 @@ def simulate_campaign(
             actor = state.turn
             strategy = strategies[actor]
             if round_actions >= max_actions_per_round:
-                remaining = pair_count(knowledge[state.turn].universe, knowledge[state.turn].belief)
+                ai = knowledge[state.turn].ai
+                remaining = pair_count(ai.universe, ai.belief)
                 raise RuntimeError(
                     f"Round exceeded {max_actions_per_round} actions; "
                     f"{state.actor.name} still has {remaining} target pairs"
                 )
             if state.phase is TurnPhase.ACTION:
-                action = _choose_action(knowledge[actor], strategy)
+                action = _choose_action(knowledge[actor], strategy, cache)
                 actions[actor] += 1
                 round_actions += 1
                 if isinstance(action, PairCandidate):
@@ -315,17 +459,15 @@ def simulate_campaign(
                     assert isinstance(event, Accusation)
                     accusations[actor] += 1
                     wrong_accusations[actor] += not event.correct
-                    knowledge[actor] = observe_accusation(
-                        knowledge[actor], event.ringleader, event.hideout, correct=event.correct
-                    )
+                    knowledge[actor] = knowledge[actor].observed_accusation(event)
                 else:
                     answers = answer_question(state.opponent.rules, state.opponent.board, action)
-                    first_index = _adversarial_first_index(knowledge[actor], action, answers)
+                    first_index = _adversarial_first_index(knowledge[actor].ai, action, answers)
                     state = ask_question(state, action, first_answer_index=first_index)
                     event = state.history[-1]
                     assert isinstance(event, AskedQuestion)
                     questions[actor] += 1
-                    knowledge[actor] = observe_first(knowledge[actor], action, event.answer)
+                    knowledge[actor] = knowledge[actor].observed_first(action, event.answer)
                 continue
             if state.phase is TurnPhase.DUAL_SECOND_ANSWER:
                 pending = state.pending_second
@@ -334,7 +476,7 @@ def simulate_campaign(
                 buy = (
                     strategy.spend is SpendPolicy.TEMPO
                     and state.actor.money >= ACTION_COST
-                    and _should_buy_second(knowledge[actor], pending.question, event.answer)
+                    and _should_buy_second(knowledge[actor].ai, pending.question, event.answer)
                 )
                 if not buy:
                     state = decline_second_answer(state)
@@ -343,12 +485,12 @@ def simulate_campaign(
                 second = state.history[-1]
                 assert isinstance(second, BoughtSecondAnswer)
                 second_answers[actor] += 1
-                knowledge[actor] = observe_second(
-                    knowledge[actor], pending.question, event.answer, second.answer
+                knowledge[actor] = knowledge[actor].observed_second(
+                    pending.question, event.answer, second.answer
                 )
                 continue
             assert state.phase is TurnPhase.POST_ACTION
-            can_convert = accusation_candidate(knowledge[actor]) is not None
+            can_convert = accusation_candidate(knowledge[actor].ai) is not None
             buy_extra = (
                 strategy.spend is SpendPolicy.TEMPO
                 and can_convert
@@ -380,8 +522,19 @@ def simulate_campaign(
             state.players[0].money + ROUND_SALARY,
             state.players[1].money + ROUND_SALARY,
         )
-        knowledge = [assets.knowledge_of(Faction.SEA), assets.knowledge_of(Faction.BIRD)]
-        state = _new_round(assets, strategies, random, money, loser)
+        state, board_ids = _new_round(assets, strategies, random, money, loser)
+        scopes = (
+            (0, 0)
+            if exact_beliefs
+            else (seed * 1_000 + round_number * 2, seed * 1_000 + round_number * 2 + 1)
+        )
+        knowledge = _round_knowledge(
+            assets,
+            board_ids,
+            belief_boards=belief_boards,
+            random=random,
+            cache_scopes=scopes,
+        )
     raise RuntimeError("Campaign exceeded round limit")
 
 
@@ -391,9 +544,11 @@ def run_matrix(
     *,
     campaigns: int,
     seed: int,
+    belief_boards: int = 1_000,
     progress: bool = False,
 ) -> tuple[Aggregate, ...]:
     results: list[Aggregate] = []
+    policy_cache: PolicyCache = {}
     for bird in strategies:
         for sea in strategies:
             aggregate = Aggregate(bird.name, sea.name)
@@ -406,6 +561,8 @@ def run_matrix(
                         Matchup(bird, sea),
                         seed=seed + campaign + len(results) * campaigns,
                         starting_player=campaign % 2,
+                        policy_cache=policy_cache,
+                        belief_boards=belief_boards,
                     )
                 )
             results.append(aggregate)
@@ -492,12 +649,18 @@ def _print_results(results: Sequence[Aggregate]) -> None:
 
 def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run Spy Web AI-vs-AI strategy benchmarks")
-    parser.add_argument("--campaigns", type=int, default=10, help="campaigns per matrix cell")
+    parser.add_argument("--campaigns", type=int, default=100, help="campaigns per matrix cell")
     parser.add_argument(
         "--boards",
         type=int,
         default=universe_board_count(BIRD_RULES),
         help="boards per faction universe; defaults to every legal board",
+    )
+    parser.add_argument(
+        "--belief-boards",
+        type=int,
+        default=1_000,
+        help="hypotheses evaluated by each AI; use 0 for exact full-universe beliefs",
     )
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--cache-dir", type=Path, default=Path(".cache/benchmark"))
@@ -515,7 +678,8 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--max-depth",
         type=int,
-        help="override adaptive search depth for faster exploratory sweeps",
+        default=1,
+        help="maximum policy search depth; defaults to 1 for high-throughput sweeps",
     )
     return parser.parse_args(argv)
 
@@ -529,12 +693,19 @@ def run(argv: Sequence[str] | None = None) -> tuple[Aggregate, ...]:
         raise SystemExit(f"Unknown strategy: {error.args[0]}") from error
     cache_label = "without cache" if args.no_cache else f"using {args.cache_dir}"
     print(f"Loading {args.boards:,}-board Bird and Sea solver universes {cache_label}...")
+    belief_label = (
+        "exact full-universe beliefs"
+        if args.belief_boards <= 0 or args.belief_boards >= args.boards
+        else f"{args.belief_boards:,}-board sampled beliefs"
+    )
+    print(f"AI policy evaluation: {belief_label}")
     assets = load_assets(args.cache_dir, args.boards, use_cache=not args.no_cache)
     results = run_matrix(
         assets,
         strategies,
         campaigns=args.campaigns,
         seed=args.seed,
+        belief_boards=args.belief_boards,
         progress=True,
     )
     _print_results(results)
