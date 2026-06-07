@@ -27,7 +27,7 @@ from spyweb.solver.belief import (
     score_dual_payment,
 )
 from spyweb.solver.encoding import Encoding
-from spyweb.solver.policy import best_accusation_leaf_value, recommend_questions
+from spyweb.solver.policy import recommend_questions
 from spyweb.solver.universe import Universe, build_universe, universe_board_count
 
 AI_TWO_PLY_MAX_BOARDS = 250_000
@@ -159,17 +159,8 @@ def recommended_action(knowledge: AiKnowledge) -> PairCandidate | Question:
         max_lookahead_boards=int(knowledge.belief.size),
         branching_limit=AI_MINIMAX_BRANCHING,
     )
-    accusation = best_accusation_leaf_value(
-        knowledge.universe,
-        knowledge.belief,
-        depth=depth,
-        branching_limit=AI_MINIMAX_BRANCHING,
-    )
-    if accusation is not None and accusation[1] <= (
-        recommendation.best.worst_leaf_pairs,
-        recommendation.best.worst_leaf_boards,
-    ):
-        return accusation[0]
+    if all(len(score.immediate.partitions) == 1 for score in recommendation.scores):
+        return max(candidates, key=lambda candidate: candidate.boards)
     return knowledge.encoding.decode_question(recommendation.best.immediate.question)
 
 

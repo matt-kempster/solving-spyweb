@@ -14,6 +14,7 @@ from spyweb.ai import (
 )
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
 from spyweb.core.game import CAMPAIGN_TARGET, GameState, TurnPhase, new_game
+from spyweb.core.model import Question
 from spyweb.core.rules import rules_fingerprint, validate_board
 from spyweb.solver.belief import PairCandidate, full_belief, pair_candidates
 from spyweb.solver.encoding import Encoding
@@ -85,16 +86,44 @@ def test_ai_only_buys_extra_accusation_for_campaign_critical_win() -> None:
 
 def test_ai_accuses_instead_of_asking_again_with_two_pairs() -> None:
     encoding = Encoding(BIRD_RULES)
-    universe = build_universe(BIRD_RULES, encoding, limit=2_000)
-    belief = full_belief(universe)
-    first = belief[0]
-    different_pair = belief[
-        (universe.ringleader[belief] != universe.ringleader[first])
-        | (universe.hideout[belief] != universe.hideout[first])
-    ][0]
-    knowledge = AiKnowledge(universe, encoding, belief[[int(first), int(different_pair)]])
+    answers = np.zeros((encoding.question_count, 2), dtype=np.uint8)
+    available = np.zeros(encoding.question_count, dtype=np.uint8)
+    available[0] = 1
+    universe = Universe(
+        "test",
+        np.asarray([0, 1], dtype=np.uint8),
+        np.asarray([0, 1], dtype=np.uint8),
+        np.zeros((2, len(BIRD_RULES.cities)), dtype=np.uint8),
+        answers,
+        answers,
+        np.zeros(encoding.question_count, dtype=np.uint8),
+        available,
+    )
+    knowledge = AiKnowledge(universe, encoding, full_belief(universe))
 
     assert isinstance(recommended_action(knowledge), PairCandidate)
+
+
+def test_ai_asks_an_informative_question_instead_of_opening_accusation() -> None:
+    encoding = Encoding(BIRD_RULES)
+    board_count = len(BIRD_RULES.spies) * len(BIRD_RULES.cities)
+    answers = np.zeros((encoding.question_count, board_count), dtype=np.uint8)
+    answers[0, board_count // 2 :] = 1
+    available = np.zeros(encoding.question_count, dtype=np.uint8)
+    available[0] = 1
+    universe = Universe(
+        "test",
+        np.repeat(np.arange(9, dtype=np.uint8), 9),
+        np.tile(np.arange(9, dtype=np.uint8), 9),
+        np.zeros((board_count, len(BIRD_RULES.cities)), dtype=np.uint8),
+        answers,
+        answers,
+        np.zeros(encoding.question_count, dtype=np.uint8),
+        available,
+    )
+    knowledge = AiKnowledge(universe, encoding, full_belief(universe))
+
+    assert isinstance(recommended_action(knowledge), Question)
 
 
 def test_ai_accuses_with_indistinguishable_pairs() -> None:
