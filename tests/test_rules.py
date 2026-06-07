@@ -37,10 +37,14 @@ def test_supplied_catalog_preserves_unavailable_senses_and_eel_point() -> None:
     validate_rules(SEA_RULES)
     assert BIRD_RULES.spies[0].directions[Sense.HEAR] == ()
     assert BIRD_RULES.spies[3].directions[Sense.HEAR] == (Direction.E,)
+    assert BIRD_RULES.spies[5].name == "Eagle"
+    assert BIRD_RULES.spies[5].directions[Sense.POINT] == ()
     assert SEA_RULES.spies[5].name == "Eel"
     assert SEA_RULES.spies[5].directions[Sense.LOOK] == ()
     assert SEA_RULES.spies[5].directions[Sense.HEAR] == ()
     assert SEA_RULES.spies[5].directions[Sense.POINT] == (Direction.S,)
+    assert SEA_RULES.spies[2].name == "Marlin"
+    assert SEA_RULES.spies[2].directions[Sense.POINT] == (Direction.N,)
 
 
 def test_unavailable_sense_cannot_be_answered() -> None:

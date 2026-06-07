@@ -52,7 +52,7 @@ _BIRD_DATA: tuple[CardData, ...] = (
     ("Hawk", 100_000, (Direction.W,), (), (Direction.S,)),
     ("Vulture", 300_000, (Direction.W,), (Direction.E,), (Direction.N,)),
     ("Osprey", 200_000, (Direction.E,), (Direction.W,), (Direction.S,)),
-    ("Eagle", 400_000, (Direction.E,), (), (Direction.NW,)),
+    ("Eagle", 400_000, (Direction.E,), (), ()),
     ("Condor", 500_000, (Direction.E,), (), (Direction.W,)),
     ("Falcon", 400_000, (), (Direction.W,), (Direction.S,)),
     ("Crow", 300_000, (Direction.W,), (Direction.E,), (Direction.S,)),
@@ -61,7 +61,7 @@ _BIRD_DATA: tuple[CardData, ...] = (
 _SEA_DATA: tuple[CardData, ...] = (
     ("Stingray", 500_000, (Direction.E,), (Direction.W,), (Direction.N,)),
     ("Urchin", 200_000, (Direction.N,), (), (Direction.E, Direction.W)),
-    ("Marlin", 100_000, (Direction.E,), (), (Direction.W,)),
+    ("Marlin", 100_000, (Direction.E,), (), (Direction.N,)),
     ("Piranha", 300_000, (Direction.W,), (Direction.E,), (Direction.S,)),
     ("Orca", 300_000, (Direction.W,), (), (Direction.S,)),
     ("Eel", 400_000, (), (), (Direction.S,)),

@@ -25,7 +25,7 @@ def test_scores_replays_and_round_trips_cache(tmp_path: Path) -> None:
     assert pair_count(universe, belief) == 81
     assert len(pair_candidates(universe, belief)) == 81
     ranking = rank_questions(universe, belief)
-    assert len(ranking) == 20
+    assert len(ranking) == 19
     assert all(universe.available_question[int(score.question)] for score in ranking)
     with pytest.raises(ValueError, match="Raven cannot hear"):
         encoding.question_id(Question(SpyId(0), Sense.HEAR))
