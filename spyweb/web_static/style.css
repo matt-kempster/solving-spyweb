@@ -10,7 +10,7 @@ section { min-width: 0; }
 .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
 .cell, .dropzone { min-height: 92px; border: 1px solid #38506a; border-radius: 6px; padding: .45rem; background: #182534; }
 .cell strong { display: block; color: #8fc7ff; font-size: .8rem; }
-.cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: .4rem; }
+.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; }
 .scratch-grid { display: grid; grid-template-columns: repeat(5, minmax(45px, 1fr)); grid-template-rows: repeat(4, auto); gap: .35rem; }
 .scratch-grid .cell { min-width: 0; }
 .landmark { display: grid; place-items: center; min-height: 70px; border: 1px dashed #8a7447; border-radius: 6px; color: #ffd47c; background: #292619; font-weight: bold; }
@@ -38,6 +38,8 @@ section { min-width: 0; }
 .sense.hear { background: #a7ef88; }
 .sense.point { background: #ffd47c; }
 .legend { display: flex; gap: .7rem; margin: .35rem 0; font-size: .78rem; }
+.cards .legend { grid-column: 1 / -1; }
+#secret .spy-card { width: min(112px, 100%); }
 .cell .spy-card { margin-top: .3rem; }
 button, select { background: #29435f; color: #fff; border: 1px solid #6589ac; border-radius: 4px; padding: .4rem .55rem; margin: .2rem; }
 button:disabled { opacity: .4; }
