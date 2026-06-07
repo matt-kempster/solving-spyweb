@@ -676,16 +676,21 @@ class Handler(BaseHTTPRequestHandler):
             action = cast(dict[str, JsonValue], raw)
             viewer = _integer(action, "player")
             with _LOCK:
-                if action.get("type") == "choose_faction":
-                    if not _AI_ENABLED:
+                current = _session()
+                if action.get("type") in ("choose_faction", "new_game"):
+                    if action.get("type") == "choose_faction" and not _AI_ENABLED:
                         raise ValueError("Faction selection is only available against the AI")
                     global _SESSION
-                    faction = _string(action, "faction")
+                    if action.get("type") == "choose_faction":
+                        faction = _string(action, "faction")
+                    else:
+                        human = current.campaign.round.players[current.human_player]
+                        faction = human.rules.spies[0].faction.value
                     _SESSION = _new_web_session(faction)
                     response = _SESSION.project(_SESSION.human_player)
                 else:
-                    _session().apply(action)
-                    response = _session().project(viewer)
+                    current.apply(action)
+                    response = current.project(viewer)
             self._json(response)
         except (KeyError, ValueError, json.JSONDecodeError) as error:
             self._json({"error": str(error)}, HTTPStatus.BAD_REQUEST)

@@ -11,6 +11,7 @@
     <h1>Spy Web</h1>
     <label>View as <select id="viewer"><option value="0">Bird</option><option value="1">Sea</option></select></label>
     <label id="faction-control" hidden>Play as <select id="human-faction"><option value="bird">Bird</option><option value="sea">Sea</option></select></label>
+    <button id="new-game" hidden>New game</button>
     <label id="ai-knowledge-control" hidden><input id="show-ai-knowledge" type="checkbox"> Show AI knowledge</label>
     <span id="status"></span>
   </header>
@@ -31,10 +32,16 @@
     <section class="opponent-column">
       <h2>Opponent cards / notes</h2>
       <p class="muted">Drag cards onto your notes board. Notes stay in this browser.</p>
-      <div class="scratch-grid" id="notes-grid"></div>
-      <div class="component-grid" id="component-grid"></div>
-      <div id="notes-pool" class="cards dropzone"></div>
-      <button id="clear-notes">Clear notes</button>
+      <div class="notes-workspace">
+        <div>
+          <div class="scratch-grid" id="notes-grid"></div>
+          <div class="component-grid" id="component-grid"></div>
+        </div>
+        <div class="notes-tray">
+          <div id="notes-pool" class="cards dropzone"></div>
+          <button id="clear-notes">Clear notes</button>
+        </div>
+      </div>
     </section>
     <section class="player-column">
       <h2>Your private board</h2>

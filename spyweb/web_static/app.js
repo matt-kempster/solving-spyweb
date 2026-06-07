@@ -32,7 +32,11 @@ async function loadArtManifest() {
 }
 
 async function act(payload) {
-  $("error").textContent = state.aiEnabled && payload.type === "end_turn" ? "AI is choosing…" : "";
+  if (payload.type === "choose_faction" || payload.type === "new_game") {
+    $("error").textContent = `Starting a new ${payload.faction || state.players[state.humanPlayer].faction} game…`;
+  } else {
+    $("error").textContent = state.aiEnabled && payload.type === "end_turn" ? "AI is choosing…" : "";
+  }
   payload.player = state.viewer;
   const response = await fetch("/api/action", {
     method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)
@@ -149,7 +153,8 @@ function render() {
   const me = state.players[state.viewer], other = state.players[1 - state.viewer];
   $("viewer").value = String(state.viewer);
   $("viewer").disabled = state.aiEnabled;
-  $("faction-control").hidden = !state.aiEnabled || !state.setupEnabled || state.setupReady[state.humanPlayer];
+  $("faction-control").hidden = !state.aiEnabled;
+  $("new-game").hidden = false;
   $("human-faction").value = state.players[state.humanPlayer].faction;
   $("ai-knowledge-control").hidden = !state.aiEnabled;
   $("show-ai-knowledge").checked = showAiKnowledge();
@@ -324,6 +329,7 @@ function renderNotes() {
 
 $("viewer").addEventListener("change", load);
 $("human-faction").addEventListener("change", () => act({type: "choose_faction", faction: $("human-faction").value}));
+$("new-game").addEventListener("click", () => act({type: "new_game"}));
 $("show-ai-knowledge").addEventListener("change", () => {
   localStorage.setItem(AI_KNOWLEDGE_KEY, $("show-ai-knowledge").checked);
   render();
