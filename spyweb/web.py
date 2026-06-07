@@ -12,6 +12,7 @@ from typing import cast
 
 from spyweb.ai import (
     AiKnowledge,
+    AiStrategy,
     ai_search_depth,
     choose_defensive_board,
     load_ai_knowledge,
@@ -237,6 +238,7 @@ def project_campaign(
     ai_pending_question: Question | None = None,
     human_player: int = 0,
     ai_player: int | None = None,
+    ai_strategy: AiStrategy = AiStrategy.MINIMAX,
     setup_enabled: bool = False,
     setup_ready: frozenset[int] = frozenset(),
 ) -> dict[str, JsonValue]:
@@ -260,6 +262,7 @@ def project_campaign(
         "phase": state.phase.value,
         "extraActionBought": state.extra_action_bought,
         "aiEnabled": ai_knowledge is not None,
+        "aiStrategy": ai_strategy.value,
         "aiThinking": (
             ai_knowledge is not None and state.turn == ai_player and ai_pending_question is None
         ),
@@ -346,6 +349,8 @@ class WebSession:
     ai_knowledge: AiKnowledge | None = None
     human_player: int = 0
     ai_player: int | None = None
+    ai_strategy: AiStrategy = AiStrategy.MINIMAX
+    ai_observations: tuple[tuple[int, ...], ...] = ()
     ai_pending_question: Question | None = None
     setup_enabled: bool = False
     setup_ready: set[int] = field(default_factory=set)
@@ -362,6 +367,7 @@ class WebSession:
             ai_pending_question=self.ai_pending_question,
             human_player=self.human_player,
             ai_player=self.ai_player,
+            ai_strategy=self.ai_strategy,
             setup_enabled=self.setup_enabled,
             setup_ready=frozenset(self.setup_ready),
         )
@@ -399,12 +405,18 @@ class WebSession:
             self._apply_ai_answer(player, _integer(action, "firstAnswerIndex"))
             self.advance_ai()
             return
+        if kind == "set_ai_strategy":
+            if self.ai_knowledge is None:
+                raise ValueError("AI strategy is only available against the AI")
+            self.ai_strategy = AiStrategy(_string(action, "strategy"))
+            return
         if kind == "next_round":
             if self.ai_knowledge is not None and player != self.human_player:
                 raise ValueError("Only the human player can start the next round")
             self.campaign = next_campaign_round(self.campaign, seed=self.seed)
             if self.ai_knowledge is not None:
                 self.ai_knowledge = reset_ai_knowledge(self.ai_knowledge)
+                self.ai_observations = ()
             self.prepare_setup()
             self.advance_ai()
             return
@@ -492,6 +504,9 @@ class WebSession:
         first = answers[first_answer_index]
         state = ask_question(state, question, first_answer_index=first_answer_index)
         self.ai_knowledge = observe_first(self.ai_knowledge, question, first)
+        qid = self.ai_knowledge.encoding.question_id(question)
+        code = self.ai_knowledge.encoding.answer_code(first)
+        self.ai_observations = (*self.ai_observations, (0, int(qid), int(code)))
         self.ai_pending_question = None
         self.campaign = CampaignState(state, self.campaign.round_number, self.campaign.winner)
 
@@ -510,7 +525,11 @@ class WebSession:
                 return
             target = state.players[self.human_player]
             if state.phase is TurnPhase.ACTION:
-                action = recommended_action(self.ai_knowledge)
+                action = recommended_action(
+                    self.ai_knowledge,
+                    strategy=self.ai_strategy,
+                    observations=self.ai_observations,
+                )
                 if isinstance(action, PairCandidate):
                     state = accuse(
                         state,
@@ -534,6 +553,9 @@ class WebSession:
                         return
                     state = ask_question(state, question)
                     self.ai_knowledge = observe_first(self.ai_knowledge, question, answers[0])
+                    qid = self.ai_knowledge.encoding.question_id(question)
+                    code = self.ai_knowledge.encoding.answer_code(answers[0])
+                    self.ai_observations = (*self.ai_observations, (0, int(qid), int(code)))
             elif state.phase is TurnPhase.DUAL_SECOND_ANSWER:
                 pending = state.pending_second
                 event = state.history[-1]
@@ -551,6 +573,13 @@ class WebSession:
                         pending.question,
                         event.answer,
                         second.answer,
+                    )
+                    qid = self.ai_knowledge.encoding.question_id(pending.question)
+                    first_code = self.ai_knowledge.encoding.answer_code(event.answer)
+                    second_code = self.ai_knowledge.encoding.answer_code(second.answer)
+                    self.ai_observations = (
+                        *self.ai_observations,
+                        (1, int(qid), int(first_code), int(second_code)),
                     )
                 else:
                     state = decline_second_answer(state)
@@ -597,7 +626,9 @@ def _cache_for_faction(cache: Path, faction: str) -> Path:
     return cache.with_name(f"{stem}-{faction}{cache.suffix}")
 
 
-def _new_web_session(human_faction: str) -> WebSession:
+def _new_web_session(
+    human_faction: str, ai_strategy: AiStrategy = AiStrategy.MINIMAX
+) -> WebSession:
     if human_faction not in ("bird", "sea"):
         raise ValueError("Faction must be bird or sea")
     human_player = 0 if human_faction == "bird" else 1
@@ -616,6 +647,7 @@ def _new_web_session(human_faction: str) -> WebSession:
         knowledge,
         human_player=human_player,
         ai_player=ai_player,
+        ai_strategy=ai_strategy,
         setup_enabled=True,
     )
     session.prepare_setup()
@@ -686,7 +718,7 @@ class Handler(BaseHTTPRequestHandler):
                     else:
                         human = current.campaign.round.players[current.human_player]
                         faction = human.rules.spies[0].faction.value
-                    _SESSION = _new_web_session(faction)
+                    _SESSION = _new_web_session(faction, current.ai_strategy)
                     response = _SESSION.project(_SESSION.human_player)
                 else:
                     current.apply(action)

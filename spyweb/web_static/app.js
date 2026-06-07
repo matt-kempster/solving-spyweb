@@ -154,6 +154,8 @@ function render() {
   $("viewer").value = String(state.viewer);
   $("viewer").disabled = state.aiEnabled;
   $("faction-control").hidden = !state.aiEnabled;
+  $("ai-strategy-control").hidden = !state.aiEnabled;
+  $("ai-strategy").value = state.aiStrategy;
   $("new-game").hidden = false;
   $("human-faction").value = state.players[state.humanPlayer].faction;
   $("ai-knowledge-control").hidden = !state.aiEnabled;
@@ -329,6 +331,7 @@ function renderNotes() {
 
 $("viewer").addEventListener("change", load);
 $("human-faction").addEventListener("change", () => act({type: "choose_faction", faction: $("human-faction").value}));
+$("ai-strategy").addEventListener("change", () => act({type: "set_ai_strategy", strategy: $("ai-strategy").value}));
 $("new-game").addEventListener("click", () => act({type: "new_game"}));
 $("show-ai-knowledge").addEventListener("change", () => {
   localStorage.setItem(AI_KNOWLEDGE_KEY, $("show-ai-knowledge").checked);

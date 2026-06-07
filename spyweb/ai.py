@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from random import Random
 
@@ -26,6 +27,7 @@ from spyweb.solver.belief import (
     pair_candidates,
     score_dual_payment,
 )
+from spyweb.solver.component_policy import Observation, rank_component_questions
 from spyweb.solver.encoding import Encoding
 from spyweb.solver.policy import recommend_questions
 from spyweb.solver.universe import Universe, build_universe, universe_board_count
@@ -35,6 +37,11 @@ AI_THREE_PLY_MAX_BOARDS = 25_000
 AI_MINIMAX_BRANCHING = 5
 AI_DEFENSIVE_LAYOUT_SAMPLES = 1_024
 AI_DEFENSIVE_LAYOUT_POOL = 32
+
+
+class AiStrategy(StrEnum):
+    MINIMAX = "minimax"
+    COMPONENT = "component"
 
 
 @dataclass(frozen=True)
@@ -146,22 +153,36 @@ def accusation_candidate(knowledge: AiKnowledge) -> PairCandidate | None:
     return candidates[0] if len(candidates) == 1 else None
 
 
-def recommended_action(knowledge: AiKnowledge) -> PairCandidate | Question:
+def recommended_action(
+    knowledge: AiKnowledge,
+    *,
+    strategy: AiStrategy = AiStrategy.MINIMAX,
+    observations: tuple[Observation, ...] = (),
+) -> PairCandidate | Question:
     candidates = pair_candidates(knowledge.universe, knowledge.belief)
     if len(candidates) == 1:
         return candidates[0]
 
+    if strategy is AiStrategy.COMPONENT:
+        component_score = rank_component_questions(
+            knowledge.universe,
+            knowledge.encoding,
+            knowledge.belief,
+            observations,
+        )[0]
+        return knowledge.encoding.decode_question(component_score.immediate.question)
+
     depth = ai_search_depth(int(knowledge.belief.size))
-    recommendation = recommend_questions(
+    minimax_recommendation = recommend_questions(
         knowledge.universe,
         knowledge.belief,
         depth=depth,
         max_lookahead_boards=int(knowledge.belief.size),
         branching_limit=AI_MINIMAX_BRANCHING,
     )
-    if recommendation.best.immediate.worst_pairs >= len(candidates):
+    if minimax_recommendation.best.immediate.worst_pairs >= len(candidates):
         return max(candidates, key=lambda candidate: candidate.boards)
-    return knowledge.encoding.decode_question(recommendation.best.immediate.question)
+    return knowledge.encoding.decode_question(minimax_recommendation.best.immediate.question)
 
 
 def ai_search_depth(board_count: int) -> int:

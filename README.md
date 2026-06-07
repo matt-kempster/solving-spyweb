@@ -108,6 +108,10 @@ best immediate questions considered at recursive nodes. Payments are
 campaign-aware and conservative: the AI only pays when the resulting immediate
 accusation guarantees a campaign-critical outcome.
 
+When playing against the AI in the web UI, use the header's **AI strategy**
+selector to switch between the bounded minimax policy and the component-building
+policy.
+
 Run a repeatable AI-vs-AI strategy and faction benchmark:
 
 ```bash

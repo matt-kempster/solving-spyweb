@@ -1,6 +1,6 @@
 import numpy as np
 
-from spyweb.ai import AiKnowledge
+from spyweb.ai import AiKnowledge, AiStrategy
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
 from spyweb.core.game import TurnPhase, ask_question, legal_questions, new_campaign
 from spyweb.core.model import SpyAnswer
@@ -111,6 +111,21 @@ def test_web_ai_advances_until_human_input_or_turn() -> None:
     assert session.campaign.round.turn == 0 or session.ai_pending_question is not None
     assert session.ai_knowledge is not None
     assert session.ai_knowledge.belief.size < np.uint32(universe.board_count)
+
+
+def test_web_ai_can_switch_to_component_strategy() -> None:
+    encoding = Encoding(BIRD_RULES)
+    universe = build_universe(BIRD_RULES, encoding, limit=2_000)
+    knowledge = AiKnowledge(universe, encoding, full_belief(universe))
+    session = WebSession(
+        new_campaign("Bird", BIRD_RULES, "Sea AI", SEA_RULES, seed=4),
+        ai_knowledge=knowledge,
+    )
+
+    session.apply({"type": "set_ai_strategy", "player": 0, "strategy": "component"})
+
+    assert session.ai_strategy is AiStrategy.COMPONENT
+    assert session.project(0)["aiStrategy"] == "component"
 
 
 def test_ai_projection_rejects_ai_private_view() -> None:
