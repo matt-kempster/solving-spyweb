@@ -15,6 +15,7 @@ from spyweb.ai import (
     ai_search_depth,
     choose_defensive_board,
     load_ai_knowledge,
+    observe_accusation,
     observe_first,
     observe_second,
     recommended_action,
@@ -484,6 +485,15 @@ class WebSession:
                         state,
                         BIRD_RULES.spies[action.ringleader].id,
                         BIRD_RULES.cities[action.hideout].id,
+                    )
+                    event = state.history[-1]
+                    if not isinstance(event, Accusation):
+                        raise RuntimeError("Missing AI accusation event")
+                    self.ai_knowledge = observe_accusation(
+                        self.ai_knowledge,
+                        event.ringleader,
+                        event.hideout,
+                        correct=event.correct,
                     )
                 else:
                     question = action

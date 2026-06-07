@@ -8,6 +8,7 @@ from spyweb.core.game import ACTION_COST, CAMPAIGN_TARGET, GameState, legal_ques
 from spyweb.core.model import (
     Answer,
     Board,
+    CityId,
     LandmarkAnswer,
     NothingAnswer,
     Question,
@@ -26,7 +27,7 @@ from spyweb.solver.belief import (
     score_dual_payment,
 )
 from spyweb.solver.encoding import Encoding
-from spyweb.solver.policy import recommend_questions
+from spyweb.solver.policy import best_accusation_leaf_value, recommend_questions
 from spyweb.solver.universe import Universe, build_universe, universe_board_count
 
 AI_TWO_PLY_MAX_BOARDS = 250_000
@@ -131,6 +132,15 @@ def observe_second(
     return AiKnowledge(knowledge.universe, knowledge.encoding, belief)
 
 
+def observe_accusation(
+    knowledge: AiKnowledge, ringleader: SpyId, hideout: CityId, *, correct: bool
+) -> AiKnowledge:
+    universe = knowledge.universe
+    belief = knowledge.belief
+    matches = (universe.ringleader[belief] == ringleader) & (universe.hideout[belief] == hideout)
+    return AiKnowledge(universe, knowledge.encoding, belief[matches if correct else ~matches])
+
+
 def accusation_candidate(knowledge: AiKnowledge) -> PairCandidate | None:
     candidates = pair_candidates(knowledge.universe, knowledge.belief)
     return candidates[0] if len(candidates) == 1 else None
@@ -149,10 +159,17 @@ def recommended_action(knowledge: AiKnowledge) -> PairCandidate | Question:
         max_lookahead_boards=int(knowledge.belief.size),
         branching_limit=AI_MINIMAX_BRANCHING,
     )
-    # A wrong accusation eliminates one pair, while a correct accusation wins.
-    # Prefer it when the question search cannot guarantee a better result.
-    if recommendation.best.worst_leaf_pairs >= len(candidates) - 1:
-        return max(candidates, key=lambda candidate: candidate.boards)
+    accusation = best_accusation_leaf_value(
+        knowledge.universe,
+        knowledge.belief,
+        depth=depth,
+        branching_limit=AI_MINIMAX_BRANCHING,
+    )
+    if accusation is not None and accusation[1] <= (
+        recommendation.best.worst_leaf_pairs,
+        recommendation.best.worst_leaf_boards,
+    ):
+        return accusation[0]
     return knowledge.encoding.decode_question(recommendation.best.immediate.question)
 
 

@@ -9,6 +9,7 @@ from pathlib import Path
 from spyweb.ai import (
     AiKnowledge,
     load_ai_knowledge,
+    observe_accusation,
     observe_first,
     observe_second,
     recommended_action,
@@ -251,13 +252,15 @@ def _ai_action(state: GameState, knowledge: AiKnowledge) -> tuple[GameState, AiK
             f"{BIRD_RULES.spies[action.ringleader].name} in "
             f"{BIRD_RULES.cities[action.hideout].name}."
         )
-        return (
-            accuse(
-                state,
-                BIRD_RULES.spies[action.ringleader].id,
-                BIRD_RULES.cities[action.hideout].id,
-            ),
-            knowledge,
+        next_state = accuse(
+            state,
+            BIRD_RULES.spies[action.ringleader].id,
+            BIRD_RULES.cities[action.hideout].id,
+        )
+        event = next_state.history[-1]
+        assert isinstance(event, Accusation)
+        return next_state, observe_accusation(
+            knowledge, event.ringleader, event.hideout, correct=event.correct
         )
 
     question = action

@@ -1,20 +1,23 @@
 from dataclasses import replace
 from random import Random
 
+import numpy as np
+
 from spyweb.ai import (
     AiKnowledge,
     ai_search_depth,
     choose_defensive_board,
     load_ai_knowledge,
+    observe_accusation,
     recommended_action,
     should_buy_extra_for_accusation,
 )
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
 from spyweb.core.game import CAMPAIGN_TARGET, GameState, TurnPhase, new_game
 from spyweb.core.rules import rules_fingerprint, validate_board
-from spyweb.solver.belief import PairCandidate, full_belief
+from spyweb.solver.belief import PairCandidate, full_belief, pair_candidates
 from spyweb.solver.encoding import Encoding
-from spyweb.solver.universe import build_universe
+from spyweb.solver.universe import Universe, build_universe
 
 
 def _knowledge_with_one_pair() -> AiKnowledge:
@@ -92,6 +95,58 @@ def test_ai_accuses_instead_of_asking_again_with_two_pairs() -> None:
     knowledge = AiKnowledge(universe, encoding, belief[[int(first), int(different_pair)]])
 
     assert isinstance(recommended_action(knowledge), PairCandidate)
+
+
+def test_ai_accuses_with_indistinguishable_pairs() -> None:
+    encoding = Encoding(BIRD_RULES)
+    for count in range(3, 10):
+        answers = np.zeros((encoding.question_count, count), dtype=np.uint8)
+        available = np.zeros(encoding.question_count, dtype=np.uint8)
+        available[0] = 1
+        ids = np.arange(count, dtype=np.uint8)
+        universe = Universe(
+            "test",
+            ids,
+            ids,
+            np.zeros((count, len(BIRD_RULES.cities)), dtype=np.uint8),
+            answers,
+            answers,
+            np.zeros(encoding.question_count, dtype=np.uint8),
+            available,
+        )
+        knowledge = AiKnowledge(universe, encoding, full_belief(universe))
+
+        assert isinstance(recommended_action(knowledge), PairCandidate)
+
+
+def test_wrong_ai_accusation_eliminates_one_of_three_pairs() -> None:
+    encoding = Encoding(BIRD_RULES)
+    universe = build_universe(BIRD_RULES, encoding, limit=2_000)
+    belief = full_belief(universe)
+    selected = []
+    seen_pairs: set[tuple[int, int]] = set()
+    for board in belief:
+        pair = (int(universe.ringleader[board]), int(universe.hideout[board]))
+        if pair not in seen_pairs:
+            selected.append(board)
+            seen_pairs.add(pair)
+        if len(selected) == 3:
+            break
+    knowledge = AiKnowledge(universe, encoding, belief[selected])
+
+    action = PairCandidate(
+        int(universe.ringleader[selected[0]]),
+        int(universe.hideout[selected[0]]),
+        1,
+    )
+    after = observe_accusation(
+        knowledge,
+        BIRD_RULES.spies[action.ringleader].id,
+        BIRD_RULES.cities[action.hideout].id,
+        correct=False,
+    )
+
+    assert len(pair_candidates(after.universe, after.belief)) == 2
 
 
 def test_defensive_board_preserves_ringleader_and_varies_by_seed() -> None:
