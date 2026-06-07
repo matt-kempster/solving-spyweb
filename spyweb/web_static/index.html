@@ -14,29 +14,29 @@
     <span id="status"></span>
   </header>
   <main>
-    <section>
-      <h2>Your private board</h2>
-      <div id="secret"></div>
-      <div class="grid" id="board"></div>
-      <h2>Actions</h2>
-      <div id="actions"></div>
-      <div id="error"></div>
+    <section class="analysis-column">
+      <h2>Game log</h2>
+      <ol id="history"></ol>
+      <h2>Knowledge bases</h2>
+      <div id="knowledge"></div>
+      <h2>Deduction graph</h2>
+      <div id="deductions"></div>
     </section>
-    <section>
+    <section class="opponent-column">
       <h2>Opponent cards / notes</h2>
       <p class="muted">Drag cards onto your notes board. Notes stay in this browser.</p>
       <div id="notes-pool" class="cards dropzone"></div>
       <div class="scratch-grid" id="notes-grid"></div>
       <div class="component-grid" id="component-grid"></div>
       <button id="clear-notes">Clear notes</button>
-      <h2>Knowledge bases</h2>
-      <div id="knowledge"></div>
-      <h2>Deduction graph</h2>
-      <div id="deductions"></div>
     </section>
-    <section>
-      <h2>Game log</h2>
-      <ol id="history"></ol>
+    <section class="player-column">
+      <h2>Your private board</h2>
+      <div id="secret"></div>
+      <div class="grid" id="board"></div>
+      <h2>Actions</h2>
+      <div id="actions"></div>
+      <div id="error"></div>
     </section>
   </main>
   <script src="/app.js"></script>
