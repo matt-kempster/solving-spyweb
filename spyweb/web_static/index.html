@@ -13,8 +13,13 @@
     <label id="ai-knowledge-control" hidden><input id="show-ai-knowledge" type="checkbox"> Show AI knowledge</label>
     <span id="status"></span>
   </header>
+  <div id="question-menu" class="context-menu" hidden></div>
   <main>
     <section class="analysis-column">
+      <div class="response-card">
+        <h2>Response</h2>
+        <div id="response" class="muted">No response yet.</div>
+      </div>
       <h2>Game log</h2>
       <ol id="history"></ol>
       <h2>Knowledge bases</h2>
