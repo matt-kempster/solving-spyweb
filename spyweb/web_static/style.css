@@ -5,7 +5,7 @@ h1, h2 { margin: .5rem 0; }
 h1 { font-size: 1.4rem; }
 h2 { font-size: 1.05rem; margin-top: 1.3rem; }
 h4 { margin: .7rem 0 .25rem; font-size: .9rem; color: #ffd47c; }
-main { display: grid; grid-template-columns: minmax(220px, .65fr) minmax(940px, 1.8fr) minmax(390px, 1fr); gap: .8rem; padding: .8rem; }
+main { display: grid; grid-template-columns: minmax(220px, .65fr) minmax(680px, 1.4fr) minmax(390px, 1fr); gap: .8rem; padding: .8rem; }
 section { min-width: 0; }
 .analysis-column h2:first-child,
 .opponent-column h2:first-child,
@@ -18,9 +18,12 @@ section { min-width: 0; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, var(--card-width)); justify-content: start; gap: var(--grid-gap); }
 .notes-workspace { display: grid; grid-template-columns: max-content calc(var(--card-width) + var(--card-width) + var(--grid-gap)); align-items: start; gap: .8rem; }
 .notes-tray { min-width: 0; }
-.scratch-grid { display: grid; grid-template-columns: repeat(5, var(--card-width)); grid-template-rows: repeat(4, auto); gap: var(--grid-gap); }
+.scratch-grid { position: relative; display: grid; grid-template-columns: repeat(3, var(--card-width)); grid-template-rows: repeat(3, var(--drop-cell-height)); gap: var(--grid-gap); margin-top: 1.4rem; }
 .scratch-grid .cell { box-sizing: border-box; height: var(--drop-cell-height); min-width: 0; overflow: hidden; }
-.landmark { display: grid; place-items: center; min-height: 70px; border: 1px dashed #8a7447; border-radius: 6px; color: #ffd47c; background: #292619; font-weight: bold; }
+.landmark { position: absolute; z-index: 2; border: 1px dashed #8a7447; border-radius: 6px; padding: .15rem .35rem; color: #ffd47c; background: #292619; font-size: .75rem; font-weight: bold; pointer-events: none; }
+.landmark-car { top: calc(var(--drop-cell-height) / 2); left: 0; transform: translate(-55%, -50%); }
+.landmark-plane { top: 0; right: calc(var(--card-width) / 2); transform: translate(50%, -65%); }
+.landmark-boat { right: 0; bottom: calc(var(--drop-cell-height) / 2); transform: translate(55%, 50%); }
 .component-grid { display: grid; grid-template-columns: repeat(3, var(--card-width)); gap: var(--grid-gap); margin-top: .7rem; }
 #notes-pool { grid-template-columns: repeat(2, var(--card-width)); min-height: var(--drop-cell-height); }
 .notes-tray button { margin-top: .7rem; }

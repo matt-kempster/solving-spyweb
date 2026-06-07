@@ -297,8 +297,8 @@ function renderNotes() {
     {noteId: "hideout", hideout: true}
   ];
   $("notes-pool").innerHTML = `<div class="legend"><span class="sense look">L look</span><span class="sense hear">H hear</span><span class="sense point">P point</span></div>${items.filter(x => !notes[x.noteId]).map(item => cardHtml(item, {draggable: true, opponent: !item.hideout})).join("")}`;
-  const landmarks = state.landmarks.map(item => `<div class="landmark" style="grid-row:${item.row + 2};grid-column:${item.col + 2}">${item.name}</div>`).join("");
-  const cities = state.cities.map((city, index) => `<div class="cell dropzone" style="grid-row:${Math.floor(index / 3) + 2};grid-column:${index % 3 + 2}" data-city="${city.id}"><strong>${city.name}</strong>${items.filter(x => notes[x.noteId] === String(city.id)).map(item => cardHtml(item, {draggable: true, opponent: !item.hideout})).join("")}</div>`).join("");
+  const landmarks = state.landmarks.map(item => `<div class="landmark landmark-${item.name.toLowerCase()}">${item.name}</div>`).join("");
+  const cities = state.cities.map(city => `<div class="cell dropzone" data-city="${city.id}"><strong>${city.name}</strong>${items.filter(x => notes[x.noteId] === String(city.id)).map(item => cardHtml(item, {draggable: true, opponent: !item.hideout})).join("")}</div>`).join("");
   $("notes-grid").innerHTML = landmarks + cities;
   $("component-grid").innerHTML = Array.from({length: COMPONENT_COUNT}, (_, index) => {
     const location = `component-${index}`;
