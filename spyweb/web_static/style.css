@@ -1,4 +1,4 @@
-:root { --card-width: 127px; --drop-cell-height: 134px; color-scheme: dark; font-family: system-ui, sans-serif; background: #111821; color: #eaf0f6; }
+:root { --card-width: 127px; --drop-cell-height: 134px; --grid-gap: .4rem; color-scheme: dark; font-family: system-ui, sans-serif; background: #111821; color: #eaf0f6; }
 body { margin: 0; }
 header { display: flex; gap: 1.5rem; align-items: center; padding: .8rem 1.2rem; background: #182534; border-bottom: 1px solid #38506a; }
 h1, h2 { margin: .5rem 0; }
@@ -12,14 +12,15 @@ section { min-width: 0; }
 .player-column h2:first-child { margin-top: .5rem; }
 .response-card { min-height: 5.5rem; border: 1px solid #587898; border-radius: 6px; padding: .4rem .6rem; background: #182534; }
 .response-card h2 { margin-top: .2rem; }
-.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
-.cell, .dropzone { min-height: 92px; border: 1px solid #38506a; border-radius: 6px; padding: .45rem; background: #182534; }
+.grid { display: grid; grid-template-columns: repeat(3, var(--card-width)); gap: var(--grid-gap); }
+.cell, .dropzone { box-sizing: border-box; min-height: 92px; border: 1px solid #38506a; border-radius: 6px; padding: .45rem; background: #182534; }
 .cell strong { display: block; color: #8fc7ff; font-size: .8rem; }
-.cards { display: grid; grid-template-columns: repeat(auto-fill, var(--card-width)); justify-content: start; gap: .4rem; }
-.scratch-grid { display: grid; grid-template-columns: repeat(5, var(--card-width)); grid-template-rows: repeat(4, auto); gap: .35rem; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, var(--card-width)); justify-content: start; gap: var(--grid-gap); }
+.scratch-grid { display: grid; grid-template-columns: repeat(5, var(--card-width)); grid-template-rows: repeat(4, auto); gap: var(--grid-gap); }
 .scratch-grid .cell { box-sizing: border-box; height: var(--drop-cell-height); min-width: 0; overflow: hidden; }
 .landmark { display: grid; place-items: center; min-height: 70px; border: 1px dashed #8a7447; border-radius: 6px; color: #ffd47c; background: #292619; font-weight: bold; }
-.component-grid { display: grid; grid-template-columns: repeat(3, var(--card-width)); gap: .4rem; margin-top: .7rem; }
+.component-grid { display: grid; grid-template-columns: repeat(3, var(--card-width)); gap: var(--grid-gap); margin-top: .7rem; }
+#notes-pool { margin-top: .7rem; }
 .component-bin { box-sizing: border-box; height: var(--drop-cell-height); min-height: 0; overflow: hidden; border-style: dashed; }
 .spy-card { position: relative; box-sizing: border-box; width: min(var(--card-width), 100%); min-height: 82px; margin-left: auto; margin-right: auto; border: 1px solid #587898; border-radius: 5px; padding: 1.4rem .5rem; background: #203248; text-align: center; }
 .spy-card.with-art { overflow: hidden; min-height: 0; padding: 0; background: #111821; }

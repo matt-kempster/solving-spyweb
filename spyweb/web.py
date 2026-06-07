@@ -235,17 +235,23 @@ def project_campaign(
     *,
     ai_knowledge: AiKnowledge | None = None,
     ai_pending_question: Question | None = None,
+    human_player: int = 0,
+    ai_player: int | None = None,
     setup_enabled: bool = False,
     setup_ready: frozenset[int] = frozenset(),
 ) -> dict[str, JsonValue]:
     if viewer not in (0, 1):
         raise ValueError("Viewer must be player 0 or 1")
-    if ai_knowledge is not None and viewer != 0:
+    if ai_knowledge is not None and viewer != human_player:
         raise ValueError("The AI's private board is not viewable")
+    if ai_knowledge is not None and ai_player is None:
+        ai_player = 1 - human_player
     state = campaign.round
     opponent = 1 - viewer
     questions = legal_questions(state.players[opponent].rules)
     history = [_event_record(state, event) for event in state.history]
+    human_rules = state.players[human_player].rules
+    human_board = state.players[human_player].board
     return {
         "round": campaign.round_number,
         "campaignWinner": campaign.winner,
@@ -254,7 +260,11 @@ def project_campaign(
         "phase": state.phase.value,
         "extraActionBought": state.extra_action_bought,
         "aiEnabled": ai_knowledge is not None,
-        "aiThinking": ai_knowledge is not None and state.turn == 1 and ai_pending_question is None,
+        "aiThinking": (
+            ai_knowledge is not None and state.turn == ai_player and ai_pending_question is None
+        ),
+        "humanPlayer": human_player,
+        "aiPlayer": ai_player,
         "setupEnabled": setup_enabled,
         "setupReady": [player in setup_ready for player in (0, 1)],
         "setupComplete": not setup_enabled or len(setup_ready) == 2,
@@ -271,13 +281,13 @@ def project_campaign(
             None
             if ai_pending_question is None
             else {
-                "spy": state.players[0].rules.spies[int(ai_pending_question.spy)].name,
+                "spy": human_rules.spies[int(ai_pending_question.spy)].name,
                 "sense": ai_pending_question.sense.name.lower(),
                 "answers": [
-                    _answer_label(state.players[0].rules, answer)
+                    _answer_label(human_rules, answer)
                     for answer in answer_question(
-                        state.players[0].rules,
-                        state.players[0].board,
+                        human_rules,
+                        human_board,
                         ai_pending_question,
                     )
                 ],
@@ -334,9 +344,15 @@ class WebSession:
     campaign: CampaignState
     seed: int | None = None
     ai_knowledge: AiKnowledge | None = None
+    human_player: int = 0
+    ai_player: int | None = None
     ai_pending_question: Question | None = None
     setup_enabled: bool = False
     setup_ready: set[int] = field(default_factory=set)
+
+    def __post_init__(self) -> None:
+        if self.ai_knowledge is not None and self.ai_player is None:
+            self.ai_player = 1 - self.human_player
 
     def project(self, viewer: int) -> dict[str, JsonValue]:
         return project_campaign(
@@ -344,6 +360,8 @@ class WebSession:
             viewer,
             ai_knowledge=self.ai_knowledge,
             ai_pending_question=self.ai_pending_question,
+            human_player=self.human_player,
+            ai_player=self.ai_player,
             setup_enabled=self.setup_enabled,
             setup_ready=frozenset(self.setup_ready),
         )
@@ -352,20 +370,22 @@ class WebSession:
         if not self.setup_enabled:
             return
         self.setup_ready.clear()
-        if self.ai_knowledge is None:
+        if self.ai_knowledge is None or self.ai_player is None:
             return
         state = self.campaign.round
         random = Random(None if self.seed is None else self.seed + self.campaign.round_number)
-        ai_player = state.players[1]
-        board = choose_defensive_board(ai_player.rules, ai_player.board.ringleader, random)
+        ai_state = state.players[self.ai_player]
+        board = choose_defensive_board(ai_state.rules, ai_state.board.ringleader, random)
+        players = list(state.players)
+        players[self.ai_player] = replace(ai_state, board=board)
         self.campaign = replace(
             self.campaign,
             round=replace(
                 state,
-                players=(state.players[0], replace(ai_player, board=board)),
+                players=(players[0], players[1]),
             ),
         )
-        self.setup_ready.add(1)
+        self.setup_ready.add(self.ai_player)
 
     def apply(self, action: dict[str, JsonValue]) -> None:
         kind = _string(action, "type")
@@ -380,7 +400,7 @@ class WebSession:
             self.advance_ai()
             return
         if kind == "next_round":
-            if self.ai_knowledge is not None and player != 0:
+            if self.ai_knowledge is not None and player != self.human_player:
                 raise ValueError("Only the human player can start the next round")
             self.campaign = next_campaign_round(self.campaign, seed=self.seed)
             if self.ai_knowledge is not None:
@@ -392,8 +412,8 @@ class WebSession:
             raise ValueError("Both players must lock their layouts before play")
         if player != state.turn:
             raise ValueError("It is not that player's turn")
-        if self.ai_knowledge is not None and player == 1:
-            raise ValueError("The AI controls Sea")
+        if self.ai_knowledge is not None and player == self.ai_player:
+            raise ValueError(f"The AI controls {state.players[player].name}")
         if kind == "ask":
             question = Question(
                 SpyId(_integer(action, "spy")),
@@ -425,14 +445,14 @@ class WebSession:
             raise ValueError("Layout selection is not enabled")
         if player not in (0, 1):
             raise ValueError("Unknown player")
-        if self.ai_knowledge is not None and player == 1:
-            raise ValueError("The AI controls Sea's layout")
+        state = self.campaign.round
+        if self.ai_knowledge is not None and player == self.ai_player:
+            raise ValueError(f"The AI controls {state.players[player].name}'s layout")
         if player in self.setup_ready:
             raise ValueError("That layout is already locked")
         raw_occupants = action.get("occupants")
         if not isinstance(raw_occupants, list):
             raise ValueError("occupants must be a list")
-        state = self.campaign.round
         current = state.players[player]
         if len(raw_occupants) != len(current.rules.cities):
             raise ValueError("Layout must contain one occupant per city")
@@ -458,7 +478,11 @@ class WebSession:
         self.setup_ready.add(player)
 
     def _apply_ai_answer(self, player: int, first_answer_index: int) -> None:
-        if player != 0 or self.ai_knowledge is None or self.ai_pending_question is None:
+        if (
+            player != self.human_player
+            or self.ai_knowledge is None
+            or self.ai_pending_question is None
+        ):
             raise ValueError("There is no AI question awaiting your answer")
         state = self.campaign.round
         question = self.ai_pending_question
@@ -473,18 +497,25 @@ class WebSession:
 
     def advance_ai(self) -> None:
         while self.ai_knowledge is not None:
+            if self.ai_player is None:
+                raise RuntimeError("AI player is not configured")
             state = self.campaign.round
             if self.setup_enabled and len(self.setup_ready) != 2:
                 return
-            if state.winner is not None or state.turn != 1 or self.ai_pending_question is not None:
+            if (
+                state.winner is not None
+                or state.turn != self.ai_player
+                or self.ai_pending_question is not None
+            ):
                 return
+            target = state.players[self.human_player]
             if state.phase is TurnPhase.ACTION:
                 action = recommended_action(self.ai_knowledge)
                 if isinstance(action, PairCandidate):
                     state = accuse(
                         state,
-                        BIRD_RULES.spies[action.ringleader].id,
-                        BIRD_RULES.cities[action.hideout].id,
+                        target.rules.spies[action.ringleader].id,
+                        target.rules.cities[action.hideout].id,
                     )
                     event = state.history[-1]
                     if not isinstance(event, Accusation):
@@ -497,7 +528,7 @@ class WebSession:
                     )
                 else:
                     question = action
-                    answers = answer_question(BIRD_RULES, state.opponent.board, question)
+                    answers = answer_question(target.rules, target.board, question)
                     if len(answers) == 2:
                         self.ai_pending_question = question
                         return
@@ -546,12 +577,49 @@ def _integer(record: dict[str, JsonValue], key: str, *, default: int | None = No
 
 _SESSION: WebSession | None = None
 _LOCK = Lock()
+_AI_ENABLED = False
+_AI_CACHE = Path(".cache/play-ai-bird.npz")
+_SEED: int | None = None
 
 
 def _session() -> WebSession:
     if _SESSION is None:
         raise RuntimeError("Web session has not been initialized")
     return _SESSION
+
+
+def _cache_for_faction(cache: Path, faction: str) -> Path:
+    stem = cache.stem
+    for suffix in ("-bird", "-sea"):
+        if stem.endswith(suffix):
+            stem = stem.removesuffix(suffix)
+            break
+    return cache.with_name(f"{stem}-{faction}{cache.suffix}")
+
+
+def _new_web_session(human_faction: str) -> WebSession:
+    if human_faction not in ("bird", "sea"):
+        raise ValueError("Faction must be bird or sea")
+    human_player = 0 if human_faction == "bird" else 1
+    ai_player = 1 - human_player if _AI_ENABLED else None
+    bird_name = "Bird AI" if ai_player == 0 else "Bird"
+    sea_name = "Sea AI" if ai_player == 1 else "Sea"
+    knowledge = None
+    if _AI_ENABLED:
+        human_rules = BIRD_RULES if human_player == 0 else SEA_RULES
+        cache = _cache_for_faction(_AI_CACHE, human_faction)
+        print(f"Loading or building AI knowledge at {cache}...")
+        knowledge = load_ai_knowledge(human_rules, cache)
+    session = WebSession(
+        new_campaign(bird_name, BIRD_RULES, sea_name, SEA_RULES, seed=_SEED),
+        _SEED,
+        knowledge,
+        human_player=human_player,
+        ai_player=ai_player,
+        setup_enabled=True,
+    )
+    session.prepare_setup()
+    return session
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -608,8 +676,16 @@ class Handler(BaseHTTPRequestHandler):
             action = cast(dict[str, JsonValue], raw)
             viewer = _integer(action, "player")
             with _LOCK:
-                _session().apply(action)
-                response = _session().project(viewer)
+                if action.get("type") == "choose_faction":
+                    if not _AI_ENABLED:
+                        raise ValueError("Faction selection is only available against the AI")
+                    global _SESSION
+                    faction = _string(action, "faction")
+                    _SESSION = _new_web_session(faction)
+                    response = _SESSION.project(_SESSION.human_player)
+                else:
+                    _session().apply(action)
+                    response = _session().project(viewer)
             self._json(response)
         except (KeyError, ValueError, json.JSONDecodeError) as error:
             self._json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
@@ -631,26 +707,19 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--seed", type=int)
-    parser.add_argument("--ai", action="store_true", help="play Bird against the Sea AI")
+    parser.add_argument("--ai", action="store_true", help="play against the AI")
     parser.add_argument(
         "--ai-cache",
         type=Path,
         default=Path(".cache/play-ai-bird.npz"),
-        help="cache for the AI's exact Bird-board universe",
+        help="base cache path for the AI's exact faction universes",
     )
     args = parser.parse_args(argv)
-    global _SESSION
-    ai_knowledge = None
-    if args.ai:
-        print(f"Loading or building AI knowledge at {args.ai_cache}...")
-        ai_knowledge = load_ai_knowledge(BIRD_RULES, args.ai_cache)
-    _SESSION = WebSession(
-        new_campaign("Bird", BIRD_RULES, "Sea AI" if args.ai else "Sea", SEA_RULES, seed=args.seed),
-        args.seed,
-        ai_knowledge,
-        setup_enabled=True,
-    )
-    _SESSION.prepare_setup()
+    global _AI_CACHE, _AI_ENABLED, _SEED, _SESSION
+    _AI_ENABLED = args.ai
+    _AI_CACHE = args.ai_cache
+    _SEED = args.seed
+    _SESSION = _new_web_session("bird")
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"Spy Web web UI: http://{args.host}:{args.port}")
     try:

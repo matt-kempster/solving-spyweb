@@ -127,6 +127,33 @@ def test_ai_projection_rejects_ai_private_view() -> None:
         raise AssertionError("AI private state must not be projected")
 
 
+def test_ai_projection_supports_human_sea_and_ai_bird() -> None:
+    encoding = Encoding(SEA_RULES)
+    universe = build_universe(SEA_RULES, encoding, limit=100)
+    knowledge = AiKnowledge(universe, encoding, full_belief(universe))
+    campaign = new_campaign("Bird AI", BIRD_RULES, "Sea", SEA_RULES, seed=4)
+    session = WebSession(
+        campaign,
+        ai_knowledge=knowledge,
+        human_player=1,
+        ai_player=0,
+    )
+
+    record = session.project(1)
+
+    assert record["viewer"] == 1
+    assert record["humanPlayer"] == 1
+    assert record["aiPlayer"] == 0
+    assert record["ownCards"][0]["faction"] == "sea"
+    assert record["opponentCards"][0]["faction"] == "bird"
+    try:
+        session.project(0)
+    except ValueError as error:
+        assert str(error) == "The AI's private board is not viewable"
+    else:
+        raise AssertionError("AI private state must not be projected")
+
+
 def _occupant_payload(session: WebSession, player: int) -> list[int]:
     board = session.campaign.round.players[player].board
     return [-1 if occupant is None else int(occupant) for occupant in board.occupant_by_city]
@@ -194,3 +221,28 @@ def test_web_ai_setup_locks_varied_ai_layout_without_advancing() -> None:
 
     session.apply({"type": "set_layout", "player": 0, "occupants": _occupant_payload(session, 0)})
     assert session.project(0)["setupComplete"] is True
+
+
+def test_web_ai_setup_supports_ai_bird() -> None:
+    encoding = Encoding(SEA_RULES)
+    universe = build_universe(SEA_RULES, encoding, limit=2_000)
+    knowledge = AiKnowledge(universe, encoding, full_belief(universe))
+    session = WebSession(
+        new_campaign("Bird AI", BIRD_RULES, "Sea", SEA_RULES, seed=4),
+        seed=None,
+        ai_knowledge=knowledge,
+        human_player=1,
+        ai_player=0,
+        setup_enabled=True,
+    )
+    original_board = session.campaign.round.players[0].board
+
+    session.prepare_setup()
+
+    ai_board = session.campaign.round.players[0].board
+    assert session.project(1)["setupReady"] == [True, False]
+    assert ai_board.ringleader == original_board.ringleader
+    validate_board(BIRD_RULES, ai_board)
+
+    session.apply({"type": "set_layout", "player": 1, "occupants": _occupant_payload(session, 1)})
+    assert session.project(1)["setupComplete"] is True

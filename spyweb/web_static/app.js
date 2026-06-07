@@ -32,7 +32,7 @@ async function loadArtManifest() {
 }
 
 async function act(payload) {
-  $("error").textContent = state.aiEnabled && payload.type === "end_turn" ? "Sea AI is choosing…" : "";
+  $("error").textContent = state.aiEnabled && payload.type === "end_turn" ? "AI is choosing…" : "";
   payload.player = state.viewer;
   const response = await fetch("/api/action", {
     method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)
@@ -147,7 +147,10 @@ function renderPrivateBoard(me, ownByName) {
 
 function render() {
   const me = state.players[state.viewer], other = state.players[1 - state.viewer];
+  $("viewer").value = String(state.viewer);
   $("viewer").disabled = state.aiEnabled;
+  $("faction-control").hidden = !state.aiEnabled || !state.setupEnabled || state.setupReady[state.humanPlayer];
+  $("human-faction").value = state.players[state.humanPlayer].faction;
   $("ai-knowledge-control").hidden = !state.aiEnabled;
   $("show-ai-knowledge").checked = showAiKnowledge();
   const belief = state.aiBelief === null || !showAiKnowledge() ? "" : ` · AI knowledge: ${state.aiBelief.pairs} pairs · depth ${state.aiBelief.depth}`;
@@ -192,7 +195,7 @@ function renderActions() {
     return;
   }
   if (state.aiQuestion !== null) {
-    $("actions").innerHTML = `<p>Sea AI asks: What does ${state.aiQuestion.spy} ${state.aiQuestion.sense}?</p>
+    $("actions").innerHTML = `<p>${state.players[state.aiPlayer].name} asks: What does ${state.aiQuestion.spy} ${state.aiQuestion.sense}?</p>
       <p>Choose which truthful answer to reveal first:</p>
       ${state.aiQuestion.answers.map((answer, i) => `<button class="ai-answer" data-index="${i}">${answer}</button>`).join("")}`;
     document.querySelectorAll(".ai-answer").forEach(button => button.onclick = () => act({type: "ai_answer", firstAnswerIndex: Number(button.dataset.index)}));
@@ -221,7 +224,7 @@ function renderActions() {
 
 function renderKnowledge() {
   $("knowledge").innerHTML = state.players.map((p, i) => {
-    if (state.aiEnabled && i === 1 && !showAiKnowledge()) {
+    if (state.aiEnabled && i === state.aiPlayer && !showAiKnowledge()) {
       return `<div class="knowledge hidden-knowledge"><strong>${p.name}</strong><p class="muted">Hidden. Enable “Show AI knowledge” to inspect it.</p></div>`;
     }
     return `<div class="knowledge"><strong>${p.name}</strong><ul>${(state.knowledge[i].length ? state.knowledge[i] : ["No observations yet."]).map(x => `<li>${x}</li>`).join("")}</ul></div>`;
@@ -244,7 +247,7 @@ function deductionLine(item, target) {
 }
 
 function renderOneDeduction(deduction, playerIndex) {
-  if (state.aiEnabled && playerIndex === 1 && !showAiKnowledge()) {
+  if (state.aiEnabled && playerIndex === state.aiPlayer && !showAiKnowledge()) {
     return `<div class="deduction hidden-knowledge"><strong>${state.players[playerIndex].name}</strong><p class="muted">AI deductions hidden.</p></div>`;
   }
   const asked = deduction.asked.map(spy => `<div class="asked-row"><span>${spy.spy}</span><span>${spy.senses.map(sensePill).join("")}</span></div>`).join("");
@@ -320,6 +323,7 @@ function renderNotes() {
 }
 
 $("viewer").addEventListener("change", load);
+$("human-faction").addEventListener("change", () => act({type: "choose_faction", faction: $("human-faction").value}));
 $("show-ai-knowledge").addEventListener("change", () => {
   localStorage.setItem(AI_KNOWLEDGE_KEY, $("show-ai-knowledge").checked);
   render();
