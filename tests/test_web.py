@@ -20,6 +20,12 @@ def test_projection_only_reveals_viewers_private_board() -> None:
     assert isinstance(players[1], dict) and "board" not in players[1]
     assert isinstance(record["ownCards"], list)
     assert isinstance(record["opponentCards"], list)
+    assert isinstance(record["landmarks"], list)
+    assert {item["name"] for item in record["landmarks"] if isinstance(item, dict)} == {
+        "Car",
+        "Plane",
+        "Boat",
+    }
 
 
 def test_web_session_applies_question_and_turn_actions() -> None:

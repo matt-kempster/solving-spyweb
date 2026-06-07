@@ -209,6 +209,10 @@ def project_campaign(
         "cities": [
             {"id": int(city.id), "name": city.name} for city in state.players[viewer].rules.cities
         ],
+        "landmarks": [
+            {"id": int(landmark.id), "name": landmark.name}
+            for landmark in state.players[viewer].rules.landmarks
+        ],
         "questions": [
             {
                 "spy": int(question.spy),

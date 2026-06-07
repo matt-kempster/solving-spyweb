@@ -24,7 +24,7 @@ async function act(payload) {
 const arrow = {N: "↑", NE: "↗", E: "→", SE: "↘", S: "↓", SW: "↙", W: "←", NW: "↖"};
 
 function cardHtml(card, options = {}) {
-  if (card.hideout) return `<div class="spy-card hideout ${options.draggable ? "draggable" : ""}" ${options.draggable ? `draggable="true" data-note="${card.noteId}"` : ""}><strong>HIDEOUT</strong></div>`;
+  if (card.hideout || card.landmark) return `<div class="spy-card hideout ${options.draggable ? "draggable" : ""}" ${options.draggable ? `draggable="true" data-note="${card.noteId}"` : ""}><strong>${card.landmark || "HIDEOUT"}</strong></div>`;
   const edges = {};
   for (const [sense, short] of [["look", "L"], ["hear", "H"], ["point", "P"]]) {
     for (const dir of card[sense]) {
@@ -114,7 +114,11 @@ function saveNotes(notes) { localStorage.setItem(notesKey(), JSON.stringify(note
 
 function renderNotes() {
   const notes = savedNotes();
-  const items = [...state.opponentCards.map(c => ({...c, noteId: `spy-${c.id}`})), {noteId: "hideout", hideout: true}];
+  const items = [
+    ...state.opponentCards.map(c => ({...c, noteId: `spy-${c.id}`})),
+    {noteId: "hideout", hideout: true},
+    ...state.landmarks.map(item => ({noteId: `landmark-${item.id}`, landmark: item.name}))
+  ];
   $("notes-pool").innerHTML = `<div class="legend"><span class="sense look">L look</span><span class="sense hear">H hear</span><span class="sense point">P point</span></div>${items.filter(x => !notes[x.noteId]).map(item => cardHtml(item, {draggable: true})).join("")}`;
   $("notes-grid").innerHTML = state.cities.map(city => `<div class="cell dropzone" data-city="${city.id}"><strong>${city.name}</strong>${items.filter(x => notes[x.noteId] === String(city.id)).map(item => cardHtml(item, {draggable: true})).join("")}</div>`).join("");
   document.querySelectorAll(".draggable").forEach(el => el.addEventListener("dragstart", ev => ev.dataTransfer.setData("text/plain", el.dataset.note)));
