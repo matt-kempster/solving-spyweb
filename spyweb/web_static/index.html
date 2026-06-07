@@ -10,6 +10,7 @@
   <header>
     <h1>Spy Web</h1>
     <label>View as <select id="viewer"><option value="0">Bird</option><option value="1">Sea</option></select></label>
+    <label id="ai-knowledge-control" hidden><input id="show-ai-knowledge" type="checkbox"> Show AI knowledge</label>
     <span id="status"></span>
   </header>
   <main>
@@ -26,6 +27,9 @@
       <p class="muted">Drag cards onto your notes board. Notes stay in this browser.</p>
       <div id="notes-pool" class="cards dropzone"></div>
       <div class="scratch-grid" id="notes-grid"></div>
+      <h3>Unplaced connected components</h3>
+      <p class="muted">Use these bins when cards are connected but their exact cities are unknown.</p>
+      <div class="component-grid" id="component-grid"></div>
       <button id="clear-notes">Clear notes</button>
       <h2>Knowledge bases</h2>
       <div id="knowledge"></div>

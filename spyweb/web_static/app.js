@@ -1,6 +1,12 @@
 let state;
 const $ = (id) => document.getElementById(id);
 const money = (n) => `$${n.toLocaleString()}`;
+const AI_KNOWLEDGE_KEY = "spyweb-show-ai-knowledge";
+const COMPONENT_COUNT = 4;
+
+function showAiKnowledge() {
+  return localStorage.getItem(AI_KNOWLEDGE_KEY) === "true";
+}
 
 async function load() {
   const response = await fetch(`/api/state?viewer=${$("viewer").value}`);
@@ -39,7 +45,9 @@ function cardHtml(card, options = {}) {
 function render() {
   const me = state.players[state.viewer], other = state.players[1 - state.viewer];
   $("viewer").disabled = state.aiEnabled;
-  const belief = state.aiBelief === null ? "" : ` · AI knowledge: ${state.aiBelief.pairs} pairs · depth ${state.aiBelief.depth}`;
+  $("ai-knowledge-control").hidden = !state.aiEnabled;
+  $("show-ai-knowledge").checked = showAiKnowledge();
+  const belief = state.aiBelief === null || !showAiKnowledge() ? "" : ` · AI knowledge: ${state.aiBelief.pairs} pairs · depth ${state.aiBelief.depth}`;
   $("status").textContent = `Round ${state.round} · Turn: ${state.players[state.turn].name} · ${me.name} ${money(me.money)} · ${other.name} ${money(other.money)}${belief}`;
   const ownByName = Object.fromEntries(state.ownCards.map(card => [card.name, card]));
   $("secret").innerHTML = `<p>Ringleader: ${me.ringleader} · Hideout: ${me.hideout}</p>${cardHtml(ownByName[me.ringleader])}`;
@@ -122,18 +130,27 @@ function renderNotes() {
   const landmarks = state.landmarks.map(item => `<div class="landmark" style="grid-row:${item.row + 2};grid-column:${item.col + 2}">${item.name}</div>`).join("");
   const cities = state.cities.map((city, index) => `<div class="cell dropzone" style="grid-row:${Math.floor(index / 3) + 2};grid-column:${index % 3 + 2}" data-city="${city.id}"><strong>${city.name}</strong>${items.filter(x => notes[x.noteId] === String(city.id)).map(item => cardHtml(item, {draggable: true})).join("")}</div>`).join("");
   $("notes-grid").innerHTML = landmarks + cities;
+  $("component-grid").innerHTML = Array.from({length: COMPONENT_COUNT}, (_, index) => {
+    const location = `component-${index}`;
+    return `<div class="cell component-bin dropzone" data-location="${location}"><strong>Component ${index + 1}</strong>${items.filter(x => notes[x.noteId] === location).map(item => cardHtml(item, {draggable: true})).join("")}</div>`;
+  }).join("");
   document.querySelectorAll(".draggable").forEach(el => el.addEventListener("dragstart", ev => ev.dataTransfer.setData("text/plain", el.dataset.note)));
   document.querySelectorAll(".dropzone").forEach(zone => {
     zone.addEventListener("dragover", ev => ev.preventDefault());
     zone.addEventListener("drop", ev => {
       ev.preventDefault();
       const n = savedNotes(), id = ev.dataTransfer.getData("text/plain");
-      if (zone.dataset.city === undefined) delete n[id]; else n[id] = zone.dataset.city;
+      const location = zone.dataset.location ?? zone.dataset.city;
+      if (location === undefined) delete n[id]; else n[id] = location;
       saveNotes(n); renderNotes();
     });
   });
 }
 
 $("viewer").addEventListener("change", load);
+$("show-ai-knowledge").addEventListener("change", () => {
+  localStorage.setItem(AI_KNOWLEDGE_KEY, $("show-ai-knowledge").checked);
+  render();
+});
 $("clear-notes").addEventListener("click", () => { localStorage.removeItem(notesKey()); renderNotes(); });
 load();

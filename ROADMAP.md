@@ -1,0 +1,57 @@
+# Spy Web Roadmap
+
+This file records requested work that is not yet complete. Keep the TUI and web
+UI backed by the same authoritative rules and AI modules.
+
+## Setup And Defensive Layouts
+
+- Add a setup phase to the web UI. The player's ringleader remains randomly
+  assigned, while the player drags the hideout and eight visible spies onto the
+  board and locks the layout before play begins.
+- Make the AI choose its hideout and permutation after receiving its random
+  ringleader.
+- Do not make the AI's defensive setup deterministic. Score layouts, retain a
+  pool of strong and strategically distinct candidates, and sample from a
+  mixed policy so repeated games do not reveal one reusable layout.
+- Add setup validation and an auditable setup event without revealing the
+  opponent's private layout.
+
+## Deduction UI
+
+- Support scratch-space component bins for groups whose relative arrangement is
+  known but whose absolute board position is not. Initial browser-only bins are
+  implemented; future work should support moving a whole component and drawing
+  explicit relative-position edges.
+- Visualize the AI's deduction graph: known relative-position edges, anchored
+  components, possible ringleaders/hideouts, and which senses it has or has not
+  asked about.
+- Keep AI knowledge hidden by default so the player cannot bias decisions based
+  on how close the AI is. The web UI now has an explicit show/hide control.
+
+## Stronger AI
+
+- Build a repeatable evaluation harness that plays policies against each other
+  across many random boards and campaign states. Track round win rate,
+  campaign win rate, solve actions, cash transfers, and setup diversity.
+- Replace the current question-only bounded minimax objective with a race-aware
+  policy that models both players' progress, bounties, campaign cash, optional
+  payments, accusations, and turn order.
+- Track or estimate the human player's belief state from the questions they ask
+  and use it when valuing extra actions and Raven/Urchin payments.
+- Add stronger endgame search and a defensive-layout optimizer. Use exhaustive
+  scoring where practical and stochastic search or candidate refinement where
+  full policy simulation is too expensive.
+- Preserve auditable recommendations and traces even when policies become more
+  sophisticated.
+
+## Visual Presentation
+
+- Give the web UI a stronger period board-game presentation while preserving
+  clear card directions and accessibility.
+- Use the following BoardGameGeek scans as visual references:
+  - https://cf.geekdo-images.com/odaVXXDOooc01Yzb8Yq4IA__imagepage/img/FuDbnHvPf4WKCcGidM39iPp7c84=/fit-in/900x600/filters:no_upscale():strip_icc()/pic283090.jpg
+  - https://cf.geekdo-images.com/VGzo42xNf1JsHaeGWjjAhA__imagepage/img/3yzPbvWbJ5E6L827m0J1oMzXhUU=/fit-in/900x600/filters:no_upscale():strip_icc()/pic283092.jpg
+  - https://cf.geekdo-images.com/N1RekXvTFkev7UIZtFgZ-g__imagepage/img/Vd3LzhFhz7LqYKRSHBXTccdPDP0=/fit-in/900x600/filters:no_upscale():strip_icc()/pic855282.jpg
+- Confirm permission or licensing before bundling scans or cropped artwork in
+  the repository. Until then, derive styling, layout, colors, and original
+  assets without copying the scans.

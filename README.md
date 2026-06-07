@@ -2,6 +2,9 @@
 
 A strictly typed Python/NumPy foundation for solving and auditing Spy Web.
 
+Requested future work and larger design items are tracked in
+[ROADMAP.md](ROADMAP.md).
+
 The project separates:
 
 - `spyweb.core`: authoritative game vocabulary and question resolution
