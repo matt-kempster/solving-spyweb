@@ -6,12 +6,13 @@ from spyweb.ai import (
     ai_search_depth,
     choose_defensive_board,
     load_ai_knowledge,
+    recommended_action,
     should_buy_extra_for_accusation,
 )
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
 from spyweb.core.game import CAMPAIGN_TARGET, GameState, TurnPhase, new_game
 from spyweb.core.rules import rules_fingerprint, validate_board
-from spyweb.solver.belief import full_belief
+from spyweb.solver.belief import PairCandidate, full_belief
 from spyweb.solver.encoding import Encoding
 from spyweb.solver.universe import build_universe
 
@@ -77,6 +78,20 @@ def test_ai_only_buys_extra_accusation_for_campaign_critical_win() -> None:
 
     campaign_point = _ai_post_action_state(CAMPAIGN_TARGET, 100_000)
     assert should_buy_extra_for_accusation(campaign_point, knowledge)
+
+
+def test_ai_accuses_instead_of_asking_again_with_two_pairs() -> None:
+    encoding = Encoding(BIRD_RULES)
+    universe = build_universe(BIRD_RULES, encoding, limit=2_000)
+    belief = full_belief(universe)
+    first = belief[0]
+    different_pair = belief[
+        (universe.ringleader[belief] != universe.ringleader[first])
+        | (universe.hideout[belief] != universe.hideout[first])
+    ][0]
+    knowledge = AiKnowledge(universe, encoding, belief[[int(first), int(different_pair)]])
+
+    assert isinstance(recommended_action(knowledge), PairCandidate)
 
 
 def test_defensive_board_preserves_ringleader_and_varies_by_seed() -> None:

@@ -8,11 +8,10 @@ from pathlib import Path
 
 from spyweb.ai import (
     AiKnowledge,
-    accusation_candidate,
     load_ai_knowledge,
     observe_first,
     observe_second,
-    recommended_question,
+    recommended_action,
     reset_ai_knowledge,
     should_buy_extra_for_accusation,
     should_buy_second,
@@ -49,9 +48,7 @@ from spyweb.core.model import (
     SpyAnswer,
 )
 from spyweb.core.rules import answer_question
-from spyweb.solver.belief import (
-    pair_count,
-)
+from spyweb.solver.belief import PairCandidate, pair_count
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -247,23 +244,23 @@ def _load_ai_knowledge(cache: Path) -> AiKnowledge:
 
 
 def _ai_action(state: GameState, knowledge: AiKnowledge) -> tuple[GameState, AiKnowledge]:
-    candidate = accusation_candidate(knowledge)
-    if candidate is not None:
+    action = recommended_action(knowledge)
+    if isinstance(action, PairCandidate):
         print(
             f"\n{state.actor.name} accuses "
-            f"{BIRD_RULES.spies[candidate.ringleader].name} in "
-            f"{BIRD_RULES.cities[candidate.hideout].name}."
+            f"{BIRD_RULES.spies[action.ringleader].name} in "
+            f"{BIRD_RULES.cities[action.hideout].name}."
         )
         return (
             accuse(
                 state,
-                BIRD_RULES.spies[candidate.ringleader].id,
-                BIRD_RULES.cities[candidate.hideout].id,
+                BIRD_RULES.spies[action.ringleader].id,
+                BIRD_RULES.cities[action.hideout].id,
             ),
             knowledge,
         )
 
-    question = recommended_question(knowledge)
+    question = action
     spy = BIRD_RULES.spies[int(question.spy)]
     print(f"\n{state.actor.name} asks: What does {spy.name} {question.sense.name.lower()} at?")
     answers = answer_question(BIRD_RULES, state.opponent.board, question)

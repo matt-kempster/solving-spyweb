@@ -12,13 +12,12 @@ from typing import cast
 
 from spyweb.ai import (
     AiKnowledge,
-    accusation_candidate,
     ai_search_depth,
     choose_defensive_board,
     load_ai_knowledge,
     observe_first,
     observe_second,
-    recommended_question,
+    recommended_action,
     reset_ai_knowledge,
     should_buy_extra_for_accusation,
     should_buy_second,
@@ -58,7 +57,7 @@ from spyweb.core.model import (
     SpyId,
 )
 from spyweb.core.rules import answer_question, validate_board
-from spyweb.solver.belief import pair_count
+from spyweb.solver.belief import PairCandidate, pair_count
 
 type JsonValue = None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
 
@@ -479,15 +478,15 @@ class WebSession:
             if state.winner is not None or state.turn != 1 or self.ai_pending_question is not None:
                 return
             if state.phase is TurnPhase.ACTION:
-                candidate = accusation_candidate(self.ai_knowledge)
-                if candidate is not None:
+                action = recommended_action(self.ai_knowledge)
+                if isinstance(action, PairCandidate):
                     state = accuse(
                         state,
-                        BIRD_RULES.spies[candidate.ringleader].id,
-                        BIRD_RULES.cities[candidate.hideout].id,
+                        BIRD_RULES.spies[action.ringleader].id,
+                        BIRD_RULES.cities[action.hideout].id,
                     )
                 else:
-                    question = recommended_question(self.ai_knowledge)
+                    question = action
                     answers = answer_question(BIRD_RULES, state.opponent.board, question)
                     if len(answers) == 2:
                         self.ai_pending_question = question

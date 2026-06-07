@@ -136,6 +136,26 @@ def accusation_candidate(knowledge: AiKnowledge) -> PairCandidate | None:
     return candidates[0] if len(candidates) == 1 else None
 
 
+def recommended_action(knowledge: AiKnowledge) -> PairCandidate | Question:
+    candidates = pair_candidates(knowledge.universe, knowledge.belief)
+    if len(candidates) == 1:
+        return candidates[0]
+
+    depth = ai_search_depth(int(knowledge.belief.size))
+    recommendation = recommend_questions(
+        knowledge.universe,
+        knowledge.belief,
+        depth=depth,
+        max_lookahead_boards=int(knowledge.belief.size),
+        branching_limit=AI_MINIMAX_BRANCHING,
+    )
+    # A wrong accusation eliminates one pair, while a correct accusation wins.
+    # Prefer it when the question search cannot guarantee a better result.
+    if recommendation.best.worst_leaf_pairs >= len(candidates) - 1:
+        return max(candidates, key=lambda candidate: candidate.boards)
+    return knowledge.encoding.decode_question(recommendation.best.immediate.question)
+
+
 def ai_search_depth(board_count: int) -> int:
     if board_count <= AI_THREE_PLY_MAX_BOARDS:
         return 3
@@ -145,15 +165,10 @@ def ai_search_depth(board_count: int) -> int:
 
 
 def recommended_question(knowledge: AiKnowledge) -> Question:
-    depth = ai_search_depth(int(knowledge.belief.size))
-    recommendation = recommend_questions(
-        knowledge.universe,
-        knowledge.belief,
-        depth=depth,
-        max_lookahead_boards=int(knowledge.belief.size),
-        branching_limit=AI_MINIMAX_BRANCHING,
-    )
-    return knowledge.encoding.decode_question(recommendation.best.immediate.question)
+    action = recommended_action(knowledge)
+    if isinstance(action, PairCandidate):
+        raise ValueError("The recommended action is an accusation")
+    return action
 
 
 def _campaign_money_after_immediate_win(
