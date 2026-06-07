@@ -1,8 +1,15 @@
 from dataclasses import replace
+from random import Random
 
-from spyweb.ai import AiKnowledge, ai_search_depth, should_buy_extra_for_accusation
+from spyweb.ai import (
+    AiKnowledge,
+    ai_search_depth,
+    choose_defensive_board,
+    should_buy_extra_for_accusation,
+)
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
 from spyweb.core.game import CAMPAIGN_TARGET, GameState, TurnPhase, new_game
+from spyweb.core.rules import validate_board
 from spyweb.solver.belief import full_belief
 from spyweb.solver.encoding import Encoding
 from spyweb.solver.universe import build_universe
@@ -43,3 +50,13 @@ def test_ai_only_buys_extra_accusation_for_campaign_critical_win() -> None:
 
     campaign_point = _ai_post_action_state(CAMPAIGN_TARGET, 100_000)
     assert should_buy_extra_for_accusation(campaign_point, knowledge)
+
+
+def test_defensive_board_preserves_ringleader_and_varies_by_seed() -> None:
+    ringleader = SEA_RULES.spies[0].id
+    boards = [choose_defensive_board(SEA_RULES, ringleader, Random(seed)) for seed in range(4)]
+
+    assert len(set(boards)) > 1
+    for board in boards:
+        assert board.ringleader == ringleader
+        validate_board(SEA_RULES, board)

@@ -39,6 +39,8 @@ The browser UI is an additional hot-seat interface; it does not replace the
 TUI. It shows the selected player's private board, card directions, actions,
 knowledge bases, and game log. Its drag-and-drop deduction board is stored only
 in browser `localStorage` and does not change authoritative game state.
+Before each web round, players can drag their visible spies and hideout into a
+private layout and lock it before play begins.
 
 Play against the same server-side solver AI used by the TUI:
 
@@ -48,6 +50,8 @@ uv run spyweb-web --ai
 
 The first AI launch builds the exact Bird-board knowledge cache. No solver code
 or private AI state runs in or is sent to the browser.
+For AI games, Sea chooses its own private layout server-side with a randomized
+defensive heuristic, so it should not repeat the same permutation every round.
 
 The emulator generates both private boards, shows the current player's board,
 lists legal questions by number, resolves answers automatically, supports

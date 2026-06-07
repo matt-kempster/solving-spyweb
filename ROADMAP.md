@@ -5,21 +5,21 @@ UI backed by the same authoritative rules and AI modules.
 
 ## Setup And Defensive Layouts
 
-- Add a setup phase to the web UI. The player's ringleader remains randomly
+- [x] Add a setup phase to the web UI. The player's ringleader remains randomly
   assigned, while the player drags the hideout and eight visible spies onto the
   board and locks the layout before play begins.
-- Make the AI choose its hideout and permutation after receiving its random
+- [x] Make the AI choose its hideout and permutation after receiving its random
   ringleader.
-- Do not make the AI's defensive setup deterministic. Score layouts, retain a
+- [x] Do not make the AI's defensive setup deterministic. Score layouts, retain a
   pool of strong and strategically distinct candidates, and sample from a
   mixed policy so repeated games do not reveal one reusable layout.
-- Add setup validation and an auditable setup event without revealing the
+- Add an auditable setup event without revealing the
   opponent's private layout.
 
 ## Deduction UI
 
-- Support scratch-space component bins for groups whose relative arrangement is
-  known but whose absolute board position is not. Initial browser-only bins are
+- [x] Support a 3x3 scratch-space for groups whose relative arrangement is
+  known but whose absolute board position is not. Browser-only bins are
   implemented; future work should support moving a whole component and drawing
   explicit relative-position edges.
 - Visualize the AI's deduction graph: known relative-position edges, anchored

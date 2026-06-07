@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from random import Random
 from threading import Lock
 from typing import cast
 
@@ -13,6 +14,7 @@ from spyweb.ai import (
     AiKnowledge,
     accusation_candidate,
     ai_search_depth,
+    choose_defensive_board,
     load_ai_knowledge,
     observe_first,
     observe_second,
@@ -45,6 +47,7 @@ from spyweb.core.game import (
 )
 from spyweb.core.model import (
     Answer,
+    Board,
     CityId,
     LandmarkAnswer,
     NothingAnswer,
@@ -54,7 +57,7 @@ from spyweb.core.model import (
     SpyAnswer,
     SpyId,
 )
-from spyweb.core.rules import answer_question
+from spyweb.core.rules import answer_question, validate_board
 from spyweb.solver.belief import pair_count
 
 type JsonValue = None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
@@ -159,6 +162,8 @@ def project_campaign(
     *,
     ai_knowledge: AiKnowledge | None = None,
     ai_pending_question: Question | None = None,
+    setup_enabled: bool = False,
+    setup_ready: frozenset[int] = frozenset(),
 ) -> dict[str, JsonValue]:
     if viewer not in (0, 1):
         raise ValueError("Viewer must be player 0 or 1")
@@ -177,6 +182,9 @@ def project_campaign(
         "extraActionBought": state.extra_action_bought,
         "aiEnabled": ai_knowledge is not None,
         "aiThinking": ai_knowledge is not None and state.turn == 1 and ai_pending_question is None,
+        "setupEnabled": setup_enabled,
+        "setupReady": [player in setup_ready for player in (0, 1)],
+        "setupComplete": not setup_enabled or len(setup_ready) == 2,
         "aiBelief": (
             None
             if ai_knowledge is None
@@ -253,6 +261,8 @@ class WebSession:
     seed: int | None = None
     ai_knowledge: AiKnowledge | None = None
     ai_pending_question: Question | None = None
+    setup_enabled: bool = False
+    setup_ready: set[int] = field(default_factory=set)
 
     def project(self, viewer: int) -> dict[str, JsonValue]:
         return project_campaign(
@@ -260,12 +270,37 @@ class WebSession:
             viewer,
             ai_knowledge=self.ai_knowledge,
             ai_pending_question=self.ai_pending_question,
+            setup_enabled=self.setup_enabled,
+            setup_ready=frozenset(self.setup_ready),
         )
+
+    def prepare_setup(self) -> None:
+        if not self.setup_enabled:
+            return
+        self.setup_ready.clear()
+        if self.ai_knowledge is None:
+            return
+        state = self.campaign.round
+        random = Random(None if self.seed is None else self.seed + self.campaign.round_number)
+        ai_player = state.players[1]
+        board = choose_defensive_board(ai_player.rules, ai_player.board.ringleader, random)
+        self.campaign = replace(
+            self.campaign,
+            round=replace(
+                state,
+                players=(state.players[0], replace(ai_player, board=board)),
+            ),
+        )
+        self.setup_ready.add(1)
 
     def apply(self, action: dict[str, JsonValue]) -> None:
         kind = _string(action, "type")
         player = _integer(action, "player")
         state = self.campaign.round
+        if kind == "set_layout":
+            self._set_layout(player, action)
+            self.advance_ai()
+            return
         if kind == "ai_answer":
             self._apply_ai_answer(player, _integer(action, "firstAnswerIndex"))
             self.advance_ai()
@@ -276,8 +311,11 @@ class WebSession:
             self.campaign = next_campaign_round(self.campaign, seed=self.seed)
             if self.ai_knowledge is not None:
                 self.ai_knowledge = reset_ai_knowledge(self.ai_knowledge)
+            self.prepare_setup()
             self.advance_ai()
             return
+        if self.setup_enabled and len(self.setup_ready) != 2:
+            raise ValueError("Both players must lock their layouts before play")
         if player != state.turn:
             raise ValueError("It is not that player's turn")
         if self.ai_knowledge is not None and player == 1:
@@ -308,6 +346,43 @@ class WebSession:
         self.campaign = CampaignState(state, self.campaign.round_number, self.campaign.winner)
         self.advance_ai()
 
+    def _set_layout(self, player: int, action: dict[str, JsonValue]) -> None:
+        if not self.setup_enabled:
+            raise ValueError("Layout selection is not enabled")
+        if player not in (0, 1):
+            raise ValueError("Unknown player")
+        if self.ai_knowledge is not None and player == 1:
+            raise ValueError("The AI controls Sea's layout")
+        if player in self.setup_ready:
+            raise ValueError("That layout is already locked")
+        raw_occupants = action.get("occupants")
+        if not isinstance(raw_occupants, list):
+            raise ValueError("occupants must be a list")
+        state = self.campaign.round
+        current = state.players[player]
+        if len(raw_occupants) != len(current.rules.cities):
+            raise ValueError("Layout must contain one occupant per city")
+        occupants: list[SpyId | None] = []
+        for value in raw_occupants:
+            if value == -1:
+                occupants.append(None)
+            elif isinstance(value, int) and not isinstance(value, bool):
+                occupants.append(SpyId(value))
+            else:
+                raise ValueError("Each layout occupant must be a spy id or -1")
+        try:
+            hideout = current.rules.cities[occupants.index(None)].id
+        except ValueError as error:
+            raise ValueError("Layout must contain exactly one hideout") from error
+        board = Board(current.board.ringleader, hideout, tuple(occupants))
+        validate_board(current.rules, board)
+        players = list(state.players)
+        players[player] = replace(current, board=board)
+        self.campaign = replace(
+            self.campaign, round=replace(state, players=(players[0], players[1]))
+        )
+        self.setup_ready.add(player)
+
     def _apply_ai_answer(self, player: int, first_answer_index: int) -> None:
         if player != 0 or self.ai_knowledge is None or self.ai_pending_question is None:
             raise ValueError("There is no AI question awaiting your answer")
@@ -325,6 +400,8 @@ class WebSession:
     def advance_ai(self) -> None:
         while self.ai_knowledge is not None:
             state = self.campaign.round
+            if self.setup_enabled and len(self.setup_ready) != 2:
+                return
             if state.winner is not None or state.turn != 1 or self.ai_pending_question is not None:
                 return
             if state.phase is TurnPhase.ACTION:
@@ -479,7 +556,9 @@ def main(argv: list[str] | None = None) -> None:
         new_campaign("Bird", BIRD_RULES, "Sea AI" if args.ai else "Sea", SEA_RULES, seed=args.seed),
         args.seed,
         ai_knowledge,
+        setup_enabled=True,
     )
+    _SESSION.prepare_setup()
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"Spy Web web UI: http://{args.host}:{args.port}")
     try:

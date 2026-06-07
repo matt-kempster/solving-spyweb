@@ -3,6 +3,7 @@ import numpy as np
 from spyweb.ai import AiKnowledge
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
 from spyweb.core.game import TurnPhase, new_campaign
+from spyweb.core.rules import validate_board
 from spyweb.solver.belief import full_belief
 from spyweb.solver.encoding import Encoding
 from spyweb.solver.universe import build_universe
@@ -95,3 +96,72 @@ def test_ai_projection_rejects_ai_private_view() -> None:
         assert str(error) == "The AI's private board is not viewable"
     else:
         raise AssertionError("AI private state must not be projected")
+
+
+def _occupant_payload(session: WebSession, player: int) -> list[int]:
+    board = session.campaign.round.players[player].board
+    return [-1 if occupant is None else int(occupant) for occupant in board.occupant_by_city]
+
+
+def test_web_setup_blocks_play_until_both_layouts_are_locked() -> None:
+    session = WebSession(
+        new_campaign("Bird", BIRD_RULES, "Sea", SEA_RULES, seed=4),
+        setup_enabled=True,
+    )
+    session.prepare_setup()
+
+    projected = session.project(0)
+    assert projected["setupEnabled"] is True
+    assert projected["setupComplete"] is False
+    assert projected["setupReady"] == [False, False]
+
+    first_question = projected["questions"]
+    assert isinstance(first_question, list)
+    question = first_question[0]
+    assert isinstance(question, dict)
+    try:
+        session.apply(
+            {
+                "type": "ask",
+                "player": 0,
+                "spy": question["spy"],
+                "sense": question["sense"],
+                "firstAnswerIndex": 0,
+            }
+        )
+    except ValueError as error:
+        assert str(error) == "Both players must lock their layouts before play"
+    else:
+        raise AssertionError("Unready setup should block normal play")
+
+    session.apply({"type": "set_layout", "player": 0, "occupants": _occupant_payload(session, 0)})
+    assert session.project(0)["setupReady"] == [True, False]
+
+    session.apply({"type": "set_layout", "player": 1, "occupants": _occupant_payload(session, 1)})
+    assert session.project(0)["setupComplete"] is True
+
+
+def test_web_ai_setup_locks_varied_ai_layout_without_advancing() -> None:
+    encoding = Encoding(BIRD_RULES)
+    universe = build_universe(BIRD_RULES, encoding, limit=2_000)
+    knowledge = AiKnowledge(universe, encoding, full_belief(universe))
+    session = WebSession(
+        new_campaign("Bird", BIRD_RULES, "Sea AI", SEA_RULES, seed=4),
+        seed=None,
+        ai_knowledge=knowledge,
+        setup_enabled=True,
+    )
+    original_board = session.campaign.round.players[1].board
+
+    session.prepare_setup()
+
+    ai_board = session.campaign.round.players[1].board
+    assert session.project(0)["setupReady"] == [False, True]
+    assert ai_board.ringleader == original_board.ringleader
+    validate_board(SEA_RULES, ai_board)
+
+    session.advance_ai()
+    assert session.campaign.round.history == ()
+
+    session.apply({"type": "set_layout", "player": 0, "occupants": _occupant_payload(session, 0)})
+    assert session.project(0)["setupComplete"] is True

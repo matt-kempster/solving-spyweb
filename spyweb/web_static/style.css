@@ -4,7 +4,6 @@ header { display: flex; gap: 1.5rem; align-items: center; padding: .8rem 1.2rem;
 h1, h2 { margin: .5rem 0; }
 h1 { font-size: 1.4rem; }
 h2 { font-size: 1.05rem; margin-top: 1.3rem; }
-h3 { font-size: .95rem; margin: 1rem 0 .25rem; }
 main { display: grid; grid-template-columns: repeat(3, minmax(260px, 1fr)); gap: 1rem; padding: 1rem; }
 section { min-width: 0; }
 .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
@@ -14,9 +13,8 @@ section { min-width: 0; }
 .scratch-grid { display: grid; grid-template-columns: repeat(5, minmax(45px, 1fr)); grid-template-rows: repeat(4, auto); gap: .35rem; }
 .scratch-grid .cell { min-width: 0; }
 .landmark { display: grid; place-items: center; min-height: 70px; border: 1px dashed #8a7447; border-radius: 6px; color: #ffd47c; background: #292619; font-weight: bold; }
-.component-grid { display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: .4rem; }
-.component-bin { min-height: 110px; border-style: dashed; }
-.component-bin strong { color: #d7b8ff; }
+.component-grid { display: grid; grid-template-columns: repeat(3, minmax(70px, 1fr)); gap: .4rem; margin-top: .7rem; }
+.component-bin { min-height: 92px; border-style: dashed; }
 .spy-card { position: relative; box-sizing: border-box; min-height: 82px; border: 1px solid #587898; border-radius: 5px; padding: 1.4rem .5rem; background: #203248; text-align: center; }
 .spy-card strong { color: #ffd47c; }
 .spy-card.draggable { cursor: grab; }

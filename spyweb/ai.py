@@ -2,10 +2,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from random import Random
 
-from spyweb.core.game import ACTION_COST, CAMPAIGN_TARGET, GameState
-from spyweb.core.model import Answer, Question, Rules
-from spyweb.core.rules import rules_fingerprint
+from spyweb.core.game import ACTION_COST, CAMPAIGN_TARGET, GameState, legal_questions
+from spyweb.core.model import (
+    Answer,
+    Board,
+    LandmarkAnswer,
+    NothingAnswer,
+    Question,
+    Rules,
+    SpyAnswer,
+    SpyId,
+)
+from spyweb.core.rules import answer_question, rules_fingerprint, validate_board
 from spyweb.solver.belief import (
     Belief,
     PairCandidate,
@@ -22,6 +32,8 @@ from spyweb.solver.universe import Universe, build_universe, universe_board_coun
 AI_TWO_PLY_MAX_BOARDS = 250_000
 AI_THREE_PLY_MAX_BOARDS = 25_000
 AI_MINIMAX_BRANCHING = 5
+AI_DEFENSIVE_LAYOUT_SAMPLES = 1_024
+AI_DEFENSIVE_LAYOUT_POOL = 32
 
 
 @dataclass(frozen=True)
@@ -29,6 +41,42 @@ class AiKnowledge:
     universe: Universe
     encoding: Encoding
     belief: Belief
+
+
+def _random_board_for_ringleader(rules: Rules, ringleader: SpyId, random: Random) -> Board:
+    occupants: list[SpyId | None] = [spy.id for spy in rules.spies if spy.id != ringleader]
+    occupants.append(None)
+    random.shuffle(occupants)
+    hideout = next(
+        city.id for city, occupant in zip(rules.cities, occupants, strict=True) if occupant is None
+    )
+    board = Board(ringleader, hideout, tuple(occupants))
+    validate_board(rules, board)
+    return board
+
+
+def _defensive_layout_score(rules: Rules, board: Board) -> tuple[int, int]:
+    answers = [
+        answer
+        for question in legal_questions(rules)
+        for answer in answer_question(rules, board, question)
+    ]
+    nothing = sum(isinstance(answer, NothingAnswer) for answer in answers)
+    spy_answers = sum(isinstance(answer, SpyAnswer) for answer in answers)
+    landmarks = sum(isinstance(answer, LandmarkAnswer) for answer in answers)
+    # "Nothing" is usually the broadest answer bucket; landmarks are usually
+    # strong absolute anchors. This is a cheap setup heuristic, not solve-tree value.
+    return (nothing * 4 + spy_answers - landmarks * 3, nothing)
+
+
+def choose_defensive_board(rules: Rules, ringleader: SpyId, random: Random) -> Board:
+    candidates = [
+        _random_board_for_ringleader(rules, ringleader, random)
+        for _ in range(AI_DEFENSIVE_LAYOUT_SAMPLES)
+    ]
+    candidates.sort(key=lambda board: _defensive_layout_score(rules, board), reverse=True)
+    pool_size = min(AI_DEFENSIVE_LAYOUT_POOL, len(candidates))
+    return candidates[random.randrange(pool_size)]
 
 
 def load_ai_knowledge(rules: Rules, cache: Path) -> AiKnowledge:

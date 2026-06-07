@@ -2,7 +2,8 @@ let state;
 const $ = (id) => document.getElementById(id);
 const money = (n) => `$${n.toLocaleString()}`;
 const AI_KNOWLEDGE_KEY = "spyweb-show-ai-knowledge";
-const COMPONENT_COUNT = 4;
+const COMPONENT_COUNT = 9;
+const setupLayouts = {};
 
 function showAiKnowledge() {
   return localStorage.getItem(AI_KNOWLEDGE_KEY) === "true";
@@ -42,6 +43,37 @@ function cardHtml(card, options = {}) {
   return `<div class="spy-card ${options.draggable ? "draggable" : ""}" ${drag}>${markers}<strong>${card.name}</strong><div class="muted">${money(card.bounty)}</div></div>`;
 }
 
+function setupKey() { return `${state.round}-${state.viewer}`; }
+
+function setupLayout() {
+  const key = setupKey();
+  if (!setupLayouts[key]) setupLayouts[key] = state.players[state.viewer].board.map(cell => cell.occupant);
+  return setupLayouts[key];
+}
+
+function renderPrivateBoard(me, ownByName) {
+  if (!state.setupEnabled || state.setupReady[state.viewer]) {
+    $("board").innerHTML = me.board.map(cell => `<div class="cell"><strong>${cell.city}</strong>${cell.occupant === "HIDEOUT" ? cardHtml({hideout: true}) : cardHtml(ownByName[cell.occupant])}</div>`).join("");
+    return;
+  }
+  const layout = setupLayout();
+  $("board").innerHTML = me.board.map((cell, city) => {
+    const occupant = layout[city];
+    const card = occupant === "HIDEOUT" ? cardHtml({hideout: true}) : cardHtml(ownByName[occupant]);
+    return `<div class="cell setup-cell" data-setup-city="${city}"><strong>${cell.city}</strong><div class="setup-card" draggable="true" data-setup-city="${city}">${card}</div></div>`;
+  }).join("");
+  document.querySelectorAll(".setup-card").forEach(card => card.addEventListener("dragstart", event => event.dataTransfer.setData("text/plain", card.dataset.setupCity)));
+  document.querySelectorAll(".setup-cell").forEach(cell => {
+    cell.addEventListener("dragover", event => event.preventDefault());
+    cell.addEventListener("drop", event => {
+      event.preventDefault();
+      const source = Number(event.dataTransfer.getData("text/plain")), target = Number(cell.dataset.setupCity);
+      [layout[source], layout[target]] = [layout[target], layout[source]];
+      render();
+    });
+  });
+}
+
 function render() {
   const me = state.players[state.viewer], other = state.players[1 - state.viewer];
   $("viewer").disabled = state.aiEnabled;
@@ -50,8 +82,9 @@ function render() {
   const belief = state.aiBelief === null || !showAiKnowledge() ? "" : ` · AI knowledge: ${state.aiBelief.pairs} pairs · depth ${state.aiBelief.depth}`;
   $("status").textContent = `Round ${state.round} · Turn: ${state.players[state.turn].name} · ${me.name} ${money(me.money)} · ${other.name} ${money(other.money)}${belief}`;
   const ownByName = Object.fromEntries(state.ownCards.map(card => [card.name, card]));
-  $("secret").innerHTML = `<p>Ringleader: ${me.ringleader} · Hideout: ${me.hideout}</p>${cardHtml(ownByName[me.ringleader])}`;
-  $("board").innerHTML = me.board.map(cell => `<div class="cell"><strong>${cell.city}</strong>${cell.occupant === "HIDEOUT" ? cardHtml({hideout: true}) : cardHtml(ownByName[cell.occupant])}</div>`).join("");
+  const choosingLayout = state.setupEnabled && !state.setupReady[state.viewer];
+  $("secret").innerHTML = `<p>Ringleader: ${me.ringleader}${choosingLayout ? "" : ` · Hideout: ${me.hideout}`}</p>${cardHtml(ownByName[me.ringleader])}`;
+  renderPrivateBoard(me, ownByName);
   renderActions();
   renderKnowledge();
   renderHistory();
@@ -60,6 +93,18 @@ function render() {
 
 function renderActions() {
   const active = state.viewer === state.turn;
+  if (state.setupEnabled && !state.setupComplete) {
+    if (state.setupReady[state.viewer]) {
+      $("actions").innerHTML = "<p>Your layout is locked. Waiting for the other player.</p>";
+    } else {
+      $("actions").innerHTML = `<p>Arrange your eight visible spies and hideout, then lock the layout.</p><button id="lock-layout">Lock layout</button>`;
+      $("lock-layout").onclick = () => {
+        const ids = Object.fromEntries(state.ownCards.map(card => [card.name, card.id]));
+        act({type: "set_layout", occupants: setupLayout().map(occupant => occupant === "HIDEOUT" ? -1 : ids[occupant])});
+      };
+    }
+    return;
+  }
   if (state.campaignWinner !== null) {
     $("actions").innerHTML = `<p>${state.players[state.campaignWinner].name} won the campaign.</p>`;
     return;
@@ -132,7 +177,7 @@ function renderNotes() {
   $("notes-grid").innerHTML = landmarks + cities;
   $("component-grid").innerHTML = Array.from({length: COMPONENT_COUNT}, (_, index) => {
     const location = `component-${index}`;
-    return `<div class="cell component-bin dropzone" data-location="${location}"><strong>Component ${index + 1}</strong>${items.filter(x => notes[x.noteId] === location).map(item => cardHtml(item, {draggable: true})).join("")}</div>`;
+    return `<div class="cell component-bin dropzone" data-location="${location}">${items.filter(x => notes[x.noteId] === location).map(item => cardHtml(item, {draggable: true})).join("")}</div>`;
   }).join("");
   document.querySelectorAll(".draggable").forEach(el => el.addEventListener("dragstart", ev => ev.dataTransfer.setData("text/plain", el.dataset.note)));
   document.querySelectorAll(".dropzone").forEach(zone => {
