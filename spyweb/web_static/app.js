@@ -1,4 +1,5 @@
 let state;
+let artManifest;
 const $ = (id) => document.getElementById(id);
 const money = (n) => `$${n.toLocaleString()}`;
 const AI_KNOWLEDGE_KEY = "spyweb-show-ai-knowledge";
@@ -10,9 +11,15 @@ function showAiKnowledge() {
 }
 
 async function load() {
+  if (artManifest === undefined) await loadArtManifest();
   const response = await fetch(`/api/state?viewer=${$("viewer").value}`);
   state = await response.json();
   render();
+}
+
+async function loadArtManifest() {
+  const response = await fetch("/local_art/manifest.json");
+  artManifest = response.ok ? await response.json() : null;
 }
 
 async function act(payload) {
@@ -30,8 +37,13 @@ async function act(payload) {
 
 const arrow = {N: "↑", NE: "↗", E: "→", SE: "↘", S: "↓", SW: "↙", W: "←", NW: "↖"};
 
+function cardImage(card) {
+  return artManifest?.cards?.[card.faction]?.[card.name] || null;
+}
+
 function cardHtml(card, options = {}) {
   if (card.hideout || card.landmark) return `<div class="spy-card hideout ${options.draggable ? "draggable" : ""}" ${options.draggable ? `draggable="true" data-note="${card.noteId}"` : ""}><strong>${card.landmark || "HIDEOUT"}</strong></div>`;
+  const image = cardImage(card);
   const edges = {};
   for (const [sense, short] of [["look", "L"], ["hear", "H"], ["point", "P"]]) {
     for (const dir of card[sense]) {
@@ -40,7 +52,8 @@ function cardHtml(card, options = {}) {
   }
   const markers = Object.entries(edges).map(([dir, values]) => `<span class="edge ${dir.toLowerCase()}">${values.join("")}</span>`).join("");
   const drag = options.draggable ? `draggable="true" data-note="${card.noteId}"` : "";
-  return `<div class="spy-card ${options.draggable ? "draggable" : ""}" ${drag}>${markers}<strong>${card.name}</strong><div class="muted">${money(card.bounty)}</div></div>`;
+  const art = image ? `<img class="card-art" src="${image}" alt="">` : "";
+  return `<div class="spy-card ${image ? "with-art" : ""} ${options.draggable ? "draggable" : ""}" ${drag}>${art}${markers}<strong>${card.name}</strong><div class="muted">${money(card.bounty)}</div></div>`;
 }
 
 function setupKey() { return `${state.round}-${state.viewer}`; }
@@ -87,6 +100,7 @@ function render() {
   renderPrivateBoard(me, ownByName);
   renderActions();
   renderKnowledge();
+  renderDeductions();
   renderHistory();
   renderNotes();
 }
@@ -154,7 +168,50 @@ function renderActions() {
 }
 
 function renderKnowledge() {
-  $("knowledge").innerHTML = state.players.map((p, i) => `<div class="knowledge"><strong>${p.name}</strong><ul>${(state.knowledge[i].length ? state.knowledge[i] : ["No observations yet."]).map(x => `<li>${x}</li>`).join("")}</ul></div>`).join("");
+  $("knowledge").innerHTML = state.players.map((p, i) => {
+    if (state.aiEnabled && i === 1 && !showAiKnowledge()) {
+      return `<div class="knowledge hidden-knowledge"><strong>${p.name}</strong><p class="muted">Hidden. Enable “Show AI knowledge” to inspect it.</p></div>`;
+    }
+    return `<div class="knowledge"><strong>${p.name}</strong><ul>${(state.knowledge[i].length ? state.knowledge[i] : ["No observations yet."]).map(x => `<li>${x}</li>`).join("")}</ul></div>`;
+  }).join("");
+}
+
+function sensePill(item) {
+  const label = item.sense[0].toUpperCase();
+  const stateClass = item.available ? (item.count > 0 ? "asked" : "unasked") : "unavailable";
+  const title = item.available ? `${item.sense}: ${item.count} asked` : `${item.sense}: unavailable`;
+  return `<span class="asked-sense ${stateClass}" title="${title}">${label}${item.count ? item.count : ""}</span>`;
+}
+
+function directionText(directions) {
+  return directions.map(direction => arrow[direction] || direction).join("/");
+}
+
+function deductionLine(item, target) {
+  return `<li><strong>${item.spy}</strong> ${item.sense} <span class="dir-text">${directionText(item.directions)}</span> → ${target}</li>`;
+}
+
+function renderOneDeduction(deduction, playerIndex) {
+  if (state.aiEnabled && playerIndex === 1 && !showAiKnowledge()) {
+    return `<div class="deduction hidden-knowledge"><strong>${state.players[playerIndex].name}</strong><p class="muted">AI deductions hidden.</p></div>`;
+  }
+  const asked = deduction.asked.map(spy => `<div class="asked-row"><span>${spy.spy}</span><span>${spy.senses.map(sensePill).join("")}</span></div>`).join("");
+  const edges = deduction.edges.length ? deduction.edges.map(item => deductionLine(item, `<strong>${item.target}</strong>`)).join("") : `<li class="muted">No spy-to-spy edges yet.</li>`;
+  const anchors = deduction.anchors.length ? deduction.anchors.map(item => deductionLine(item, `<strong>${item.target}</strong>`)).join("") : `<li class="muted">No landmark anchors yet.</li>`;
+  const nothings = deduction.nothings.length ? deduction.nothings.map(item => `<li><strong>${item.spy}</strong> ${item.sense} <span class="dir-text">${directionText(item.directions)}</span> → nothing</li>`).join("") : `<li class="muted">No nothing observations yet.</li>`;
+  const accusations = deduction.accusations.length ? `<h4>Accusations</h4><ul>${deduction.accusations.map(item => `<li>${item.ringleader} in ${item.hideout}: ${item.correct ? "correct" : "wrong"}</li>`).join("")}</ul>` : "";
+  return `<div class="deduction">
+    <strong>${state.players[playerIndex].name} solving ${deduction.targetFaction}</strong>
+    <div class="asked-grid">${asked}</div>
+    <h4>Edges</h4><ul>${edges}</ul>
+    <h4>Landmarks</h4><ul>${anchors}</ul>
+    <h4>Nothing</h4><ul>${nothings}</ul>
+    ${accusations}
+  </div>`;
+}
+
+function renderDeductions() {
+  $("deductions").innerHTML = state.deductions.map((deduction, i) => renderOneDeduction(deduction, i)).join("");
 }
 
 function renderHistory() {

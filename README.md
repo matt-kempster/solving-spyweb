@@ -53,6 +53,22 @@ or private AI state runs in or is sent to the browser.
 For AI games, Sea chooses its own private layout server-side with a randomized
 defensive heuristic, so it should not repeat the same permutation every round.
 
+The browser also visualizes each player's event-derived deduction graph:
+asked/unasked senses, spy-to-spy edges, landmark anchors, and nothing answers.
+AI deductions and its textual knowledge base remain hidden until the
+`Show AI knowledge` control is enabled.
+
+Optional local card art can be placed under the git-ignored
+`spyweb/web_static/local_art/` directory. Copy
+[`docs/local-art-manifest.example.json`](docs/local-art-manifest.example.json)
+to `spyweb/web_static/local_art/manifest.json`, add your locally sliced PNGs,
+and update the paths. This keeps user-provided scans out of the repository.
+For 3x3 Bird and Sea card-sheet scans, `ffmpeg` can slice and configure them:
+
+```bash
+uv run spyweb-slice-art --bird path/to/birds.jpg --sea path/to/sea.jpg
+```
+
 The emulator generates both private boards, shows the current player's board,
 lists legal questions by number, resolves answers automatically, supports
 accusations, and clears the terminal before passing turns. Raven points north

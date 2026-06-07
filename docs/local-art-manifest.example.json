@@ -1,0 +1,12 @@
+{
+  "cards": {
+    "bird": {
+      "Raven": "/local_art/cards/bird/raven.png",
+      "Buzzard": "/local_art/cards/bird/buzzard.png"
+    },
+    "sea": {
+      "Stingray": "/local_art/cards/sea/stingray.png",
+      "Urchin": "/local_art/cards/sea/urchin.png"
+    }
+  }
+}

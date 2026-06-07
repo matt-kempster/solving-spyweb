@@ -147,6 +147,7 @@ def _cards_record(rules: Rules) -> list[JsonValue]:
         {
             "id": int(spy.id),
             "name": spy.name,
+            "faction": spy.faction.value,
             "bounty": spy.bounty,
             "look": [direction.name for direction in spy.directions[Sense.LOOK]],
             "hear": [direction.name for direction in spy.directions[Sense.HEAR]],
@@ -154,6 +155,78 @@ def _cards_record(rules: Rules) -> list[JsonValue]:
         }
         for spy in rules.spies
     ]
+
+
+def _deduction_record(state: GameState, player_index: int) -> dict[str, JsonValue]:
+    target = 1 - player_index
+    rules = state.players[target].rules
+    asked_counts: dict[tuple[int, Sense], int] = {}
+    edges: list[JsonValue] = []
+    anchors: list[JsonValue] = []
+    nothings: list[JsonValue] = []
+    accusations: list[JsonValue] = []
+
+    def directions(question: Question) -> list[str]:
+        return [
+            direction.name
+            for direction in rules.spies[int(question.spy)].directions[question.sense]
+        ]
+
+    def spy_name(spy: SpyId) -> str:
+        return rules.spies[int(spy)].name
+
+    def city_name(city: CityId) -> str:
+        return rules.cities[int(city)].name
+
+    def observe(question: Question, answer: Answer) -> None:
+        key = (int(question.spy), question.sense)
+        asked_counts[key] = asked_counts.get(key, 0) + 1
+        base: dict[str, JsonValue] = {
+            "spy": spy_name(question.spy),
+            "sense": question.sense.name.lower(),
+            "directions": cast(list[JsonValue], directions(question)),
+        }
+        if isinstance(answer, SpyAnswer):
+            edges.append({**base, "target": spy_name(answer.spy)})
+        elif isinstance(answer, LandmarkAnswer):
+            anchors.append({**base, "target": rules.landmarks[int(answer.landmark)].name})
+        elif isinstance(answer, NothingAnswer):
+            nothings.append(base)
+        else:
+            raise TypeError(answer)
+
+    for event in state.history:
+        if isinstance(event, (AskedQuestion, BoughtSecondAnswer)) and event.asker == player_index:
+            observe(event.question, event.answer)
+        elif isinstance(event, Accusation) and event.accuser == player_index:
+            accusations.append(
+                {
+                    "ringleader": spy_name(event.ringleader),
+                    "hideout": city_name(event.hideout),
+                    "correct": event.correct,
+                }
+            )
+
+    asked: list[JsonValue] = []
+    for spy in rules.spies:
+        senses: list[JsonValue] = [
+            {
+                "sense": sense.name.lower(),
+                "available": bool(spy.directions[sense]),
+                "count": asked_counts.get((int(spy.id), sense), 0),
+            }
+            for sense in Sense
+        ]
+        asked.append({"spy": spy.name, "senses": senses})
+    return {
+        "player": player_index,
+        "targetFaction": rules.spies[0].faction.value,
+        "asked": asked,
+        "edges": edges,
+        "anchors": anchors,
+        "nothings": nothings,
+        "accusations": accusations,
+    }
 
 
 def project_campaign(
@@ -252,6 +325,7 @@ def project_campaign(
             ]
             for player in (0, 1)
         ],
+        "deductions": [_deduction_record(state, player) for player in (0, 1)],
     }
 
 
@@ -487,13 +561,22 @@ class Handler(BaseHTTPRequestHandler):
                 return
             filename = "index.html" if self.path == "/" else self.path.lstrip("/")
             path = STATIC_DIR / filename
-            if path.parent != STATIC_DIR or not path.is_file():
+            try:
+                path.resolve().relative_to(STATIC_DIR.resolve())
+            except ValueError:
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
+            if not path.is_file():
                 self.send_error(HTTPStatus.NOT_FOUND)
                 return
             content_type = {
                 ".html": "text/html",
                 ".css": "text/css",
                 ".js": "text/javascript",
+                ".json": "application/json",
+                ".png": "image/png",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
             }.get(path.suffix, "application/octet-stream")
             body = path.read_bytes()
             self.send_response(HTTPStatus.OK)

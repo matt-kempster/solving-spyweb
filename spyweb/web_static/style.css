@@ -4,6 +4,7 @@ header { display: flex; gap: 1.5rem; align-items: center; padding: .8rem 1.2rem;
 h1, h2 { margin: .5rem 0; }
 h1 { font-size: 1.4rem; }
 h2 { font-size: 1.05rem; margin-top: 1.3rem; }
+h4 { margin: .7rem 0 .25rem; font-size: .9rem; color: #ffd47c; }
 main { display: grid; grid-template-columns: repeat(3, minmax(260px, 1fr)); gap: 1rem; padding: 1rem; }
 section { min-width: 0; }
 .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
@@ -16,6 +17,10 @@ section { min-width: 0; }
 .component-grid { display: grid; grid-template-columns: repeat(3, minmax(70px, 1fr)); gap: .4rem; margin-top: .7rem; }
 .component-bin { min-height: 92px; border-style: dashed; }
 .spy-card { position: relative; box-sizing: border-box; min-height: 82px; border: 1px solid #587898; border-radius: 5px; padding: 1.4rem .5rem; background: #203248; text-align: center; }
+.spy-card.with-art { overflow: hidden; min-height: 118px; padding-top: 4.8rem; }
+.card-art { position: absolute; inset: 0 0 auto 0; width: 100%; height: 4.5rem; object-fit: cover; opacity: .82; }
+.spy-card.with-art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, transparent 0, rgba(32, 50, 72, .15) 45%, rgba(32, 50, 72, .92) 72%); pointer-events: none; }
+.spy-card.with-art > :not(.card-art) { position: relative; z-index: 1; }
 .spy-card strong { color: #ffd47c; }
 .spy-card.draggable { cursor: grab; }
 .spy-card.hideout { display: grid; place-items: center; color: #ffd47c; }
@@ -40,4 +45,13 @@ button:disabled { opacity: .4; }
 #error { color: #ff9c9c; min-height: 1.5rem; }
 ol, ul { padding-left: 1.3rem; }
 .knowledge { border-left: 3px solid #587898; padding-left: .6rem; }
+.hidden-knowledge { opacity: .75; }
+.deduction { border-left: 3px solid #8a7447; padding-left: .6rem; margin-bottom: 1rem; }
+.asked-grid { display: grid; gap: .25rem; margin: .5rem 0; }
+.asked-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; font-size: .85rem; }
+.asked-sense { display: inline-block; min-width: 1.15rem; margin-left: .18rem; border-radius: 999px; padding: .08rem .22rem; text-align: center; font: bold .7rem ui-monospace, monospace; }
+.asked-sense.asked { background: #ffd47c; color: #101820; }
+.asked-sense.unasked { border: 1px solid #587898; color: #a8b4c0; }
+.asked-sense.unavailable { border: 1px solid #3c4650; color: #5f6d78; text-decoration: line-through; }
+.dir-text { color: #ffd47c; font-weight: bold; }
 @media (max-width: 950px) { main { grid-template-columns: 1fr; } }

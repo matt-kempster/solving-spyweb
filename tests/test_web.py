@@ -2,8 +2,9 @@ import numpy as np
 
 from spyweb.ai import AiKnowledge
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
-from spyweb.core.game import TurnPhase, new_campaign
-from spyweb.core.rules import validate_board
+from spyweb.core.game import TurnPhase, ask_question, legal_questions, new_campaign
+from spyweb.core.model import SpyAnswer
+from spyweb.core.rules import answer_question, validate_board
 from spyweb.solver.belief import full_belief
 from spyweb.solver.encoding import Encoding
 from spyweb.solver.universe import build_universe
@@ -21,6 +22,7 @@ def test_projection_only_reveals_viewers_private_board() -> None:
     assert isinstance(players[1], dict) and "board" not in players[1]
     assert isinstance(record["ownCards"], list)
     assert isinstance(record["opponentCards"], list)
+    assert all(isinstance(card, dict) and "faction" in card for card in record["opponentCards"])
     assert isinstance(record["landmarks"], list)
     assert {
         (item["name"], item["row"], item["col"])
@@ -31,6 +33,33 @@ def test_projection_only_reveals_viewers_private_board() -> None:
         ("Plane", -1, 2),
         ("Boat", 2, 3),
     }
+    deductions = record["deductions"]
+    assert isinstance(deductions, list)
+    assert len(deductions) == 2
+
+
+def test_projection_builds_event_derived_deduction_graph() -> None:
+    campaign = new_campaign("Bird", BIRD_RULES, "Sea", SEA_RULES, seed=4)
+    state = campaign.round
+    question = next(
+        question
+        for question in legal_questions(SEA_RULES)
+        if isinstance(answer_question(SEA_RULES, state.players[1].board, question)[0], SpyAnswer)
+    )
+    campaign = campaign.__class__(ask_question(state, question))
+
+    record = project_campaign(campaign, 0)
+    deductions = record["deductions"]
+    assert isinstance(deductions, list)
+    bird = deductions[0]
+    assert isinstance(bird, dict)
+    edges = bird["edges"]
+    assert isinstance(edges, list)
+    assert len(edges) == 1
+    edge = edges[0]
+    assert isinstance(edge, dict)
+    assert edge["spy"] == SEA_RULES.spies[int(question.spy)].name
+    assert edge["sense"] == question.sense.name.lower()
 
 
 def test_web_session_applies_question_and_turn_actions() -> None:

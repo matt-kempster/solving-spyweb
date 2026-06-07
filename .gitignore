@@ -10,3 +10,4 @@ htmlcov/
 node_modules/
 dist/
 .cache/
+spyweb/web_static/local_art/
