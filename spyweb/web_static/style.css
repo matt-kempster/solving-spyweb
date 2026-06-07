@@ -16,14 +16,14 @@ section { min-width: 0; }
 .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
 .cell, .dropzone { min-height: 92px; border: 1px solid #38506a; border-radius: 6px; padding: .45rem; background: #182534; }
 .cell strong { display: block; color: #8fc7ff; font-size: .8rem; }
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 88px)); justify-content: start; gap: .4rem; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 106px)); justify-content: start; gap: .4rem; }
 .scratch-grid { display: grid; grid-template-columns: repeat(5, minmax(45px, 1fr)); grid-template-rows: repeat(4, auto); gap: .35rem; }
 .scratch-grid .cell { min-width: 0; }
 .landmark { display: grid; place-items: center; min-height: 70px; border: 1px dashed #8a7447; border-radius: 6px; color: #ffd47c; background: #292619; font-weight: bold; }
 .component-grid { display: grid; grid-template-columns: repeat(3, minmax(70px, 1fr)); gap: .4rem; margin-top: .7rem; }
 .component-bin { min-height: 92px; border-style: dashed; }
 .spy-card { position: relative; box-sizing: border-box; min-height: 82px; border: 1px solid #587898; border-radius: 5px; padding: 1.4rem .5rem; background: #203248; text-align: center; }
-.spy-card.with-art { overflow: hidden; width: 100%; max-width: 104px; min-height: 0; margin-left: auto; margin-right: auto; padding: 0; background: #111821; }
+.spy-card.with-art { overflow: hidden; width: 100%; max-width: 125px; min-height: 0; margin-left: auto; margin-right: auto; padding: 0; background: #111821; }
 .card-art { display: block; width: 100%; height: auto; opacity: 1; }
 .spy-card.with-art > strong,
 .spy-card.with-art > .muted { display: none; }
@@ -45,7 +45,7 @@ section { min-width: 0; }
 .sense.point { background: #ffd47c; }
 .legend { display: flex; gap: .7rem; margin: .35rem 0; font-size: .78rem; }
 .cards .legend { grid-column: 1 / -1; }
-#secret .spy-card { width: min(88px, 100%); }
+#secret .spy-card { width: min(106px, 100%); }
 .cell .spy-card { margin-top: .3rem; }
 button, select { background: #29435f; color: #fff; border: 1px solid #6589ac; border-radius: 4px; padding: .4rem .55rem; margin: .2rem; }
 button:disabled { opacity: .4; }
