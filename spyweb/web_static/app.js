@@ -267,7 +267,10 @@ function renderDeductions() {
 }
 
 function renderHistory() {
-  $("history").innerHTML = state.history.map(e => `<li>${state.players[e.player].name}: ${e.text}</li>`).join("");
+  $("history").innerHTML = state.history
+    .filter(e => e.kind !== "turn")
+    .map(e => `<li>${state.players[e.player].name}: ${e.text}</li>`)
+    .join("");
 }
 
 function renderResponse() {
