@@ -5,11 +5,12 @@ from spyweb.ai import (
     AiKnowledge,
     ai_search_depth,
     choose_defensive_board,
+    load_ai_knowledge,
     should_buy_extra_for_accusation,
 )
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
 from spyweb.core.game import CAMPAIGN_TARGET, GameState, TurnPhase, new_game
-from spyweb.core.rules import validate_board
+from spyweb.core.rules import rules_fingerprint, validate_board
 from spyweb.solver.belief import full_belief
 from spyweb.solver.encoding import Encoding
 from spyweb.solver.universe import build_universe
@@ -40,6 +41,32 @@ def test_ai_search_depth_increases_as_belief_shrinks() -> None:
     assert ai_search_depth(250_001) == 1
     assert ai_search_depth(250_000) == 2
     assert ai_search_depth(25_000) == 3
+
+
+def test_load_ai_knowledge_rebuilds_stale_rule_cache(tmp_path) -> None:
+    cache = tmp_path / "ai.npz"
+    encoding = Encoding(BIRD_RULES)
+    universe = build_universe(BIRD_RULES, encoding, limit=2_000)
+    stale = AiKnowledge(
+        type(universe)(
+            "stale-fingerprint",
+            universe.ringleader,
+            universe.hideout,
+            universe.occupant_by_city,
+            universe.answer0,
+            universe.answer1,
+            universe.dual_question,
+            universe.available_question,
+        ),
+        encoding,
+        full_belief(universe),
+    )
+    stale.universe.save(cache)
+
+    knowledge = load_ai_knowledge(BIRD_RULES, cache)
+
+    assert knowledge.universe.rules_fingerprint == rules_fingerprint(BIRD_RULES)
+    assert knowledge.universe.board_count > universe.board_count
 
 
 def test_ai_only_buys_extra_accusation_for_campaign_critical_win() -> None:

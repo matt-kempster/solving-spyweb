@@ -83,11 +83,21 @@ def load_ai_knowledge(rules: Rules, cache: Path) -> AiKnowledge:
     encoding = Encoding(rules)
     expected = universe_board_count(rules)
     if cache.exists():
-        universe = Universe.load(
-            cache,
-            expected_rules_fingerprint=rules_fingerprint(rules),
-            expected_board_count=expected,
-        )
+        try:
+            universe = Universe.load(
+                cache,
+                expected_rules_fingerprint=rules_fingerprint(rules),
+                expected_board_count=expected,
+            )
+        except ValueError as error:
+            message = str(error)
+            stale_cache = (
+                "different rules" in message or "Unsupported universe cache version" in message
+            )
+            if not stale_cache:
+                raise
+            universe = build_universe(rules, encoding)
+            universe.save(cache)
     else:
         universe = build_universe(rules, encoding)
         universe.save(cache)
