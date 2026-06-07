@@ -41,6 +41,9 @@ UI backed by the same authoritative rules and AI modules.
   boards while AI decisions use configurable particle beliefs; 1,000 particles
   runs roughly 14 campaigns/second on the development machine. Exact beliefs
   remain available with `--belief-boards 0`.
+- [x] Add a component-building strategy that prioritizes ringleader elimination,
+  connected-component growth and anchoring, likely spy answers, and
+  belief-conditioned non-Nothing directions.
 - Continue optimizing exact-universe policy evaluation. Reusable policy
   decisions and faster partition scoring reduced a depth-1 exact campaign to
   roughly 45 seconds, but large exact matrices are not yet routine.

@@ -130,6 +130,12 @@ memory, and `--json-out results.json` for machine-readable results. Policy
 search defaults to depth 1 for fast sweeps; use `--max-depth 2` or
 `--max-depth 3` for slower lookahead experiments.
 
+The benchmark includes a `component` strategy modeled after human constraint
+solving. It prioritizes questions that reduce possible ringleaders, grow or
+anchor known connected components, and are likely to produce a spy or other
+non-Nothing answer. Its answer probabilities are conditioned on the current
+belief, so its preferred directions adapt as the possible board shapes narrow.
+
 Use a representative development sample:
 
 ```bash

@@ -46,6 +46,7 @@ from spyweb.solver.belief import (
     pair_count,
     score_dual_payment,
 )
+from spyweb.solver.component_policy import rank_component_questions
 from spyweb.solver.encoding import Encoding
 from spyweb.solver.policy import recommend_questions
 from spyweb.solver.universe import Universe, build_universe, universe_board_count
@@ -54,6 +55,7 @@ from spyweb.solver.universe import Universe, build_universe, universe_board_coun
 class SearchPolicy(StrEnum):
     GREEDY = "greedy"
     ADAPTIVE = "adaptive"
+    COMPONENT = "component"
 
 
 class SpendPolicy(StrEnum):
@@ -85,6 +87,12 @@ STRATEGIES: dict[str, Strategy] = {
         "current", SearchPolicy.ADAPTIVE, SpendPolicy.NEVER, SetupPolicy.DEFENSIVE
     ),
     "tempo": Strategy("tempo", SearchPolicy.ADAPTIVE, SpendPolicy.TEMPO, SetupPolicy.DEFENSIVE),
+    "component": Strategy(
+        "component",
+        SearchPolicy.COMPONENT,
+        SpendPolicy.TEMPO,
+        SetupPolicy.DEFENSIVE,
+    ),
 }
 
 
@@ -292,6 +300,18 @@ def _choose_action(
     if len(candidates) == 1:
         cache[key] = candidates[0]
         return candidates[0]
+    if strategy.search is SearchPolicy.COMPONENT:
+        component_score = rank_component_questions(
+            ai.universe,
+            ai.encoding,
+            ai.belief,
+            knowledge.observations,
+        )[0]
+        component_action: PairCandidate | Question = ai.encoding.decode_question(
+            component_score.immediate.question
+        )
+        cache[key] = component_action
+        return component_action
     depth = (
         ai_search_depth(int(ai.belief.size))
         if strategy.search is SearchPolicy.ADAPTIVE
@@ -671,7 +691,7 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--strategies",
-        default="frugal,current,tempo",
+        default="frugal,current,tempo,component",
         help=f"comma-separated strategies: {','.join(STRATEGIES)}",
     )
     parser.add_argument("--json-out", type=Path)
