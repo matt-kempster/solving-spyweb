@@ -30,10 +30,10 @@ UI backed by the same authoritative rules and AI modules.
 
 ## Stronger AI
 
-- Build a repeatable evaluation harness that plays policies against each other
+- [x] Build a repeatable evaluation harness that plays policies against each other
   across many random boards and campaign states. Track round win rate,
   campaign win rate, solve actions, cash transfers, and setup diversity.
-- Run a configurable AI-vs-AI strategy matrix spanning asking, accusation,
+- [x] Run a configurable initial AI-vs-AI strategy matrix spanning asking, accusation,
   payment, extra-action, and defensive-layout policies. Report confidence
   intervals, head-to-head grids, Bird-versus-Sea faction advantage, and results
   with factions swapped so strategy strength is separated from faction strength.

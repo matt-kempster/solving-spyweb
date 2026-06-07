@@ -1,4 +1,5 @@
 from dataclasses import replace
+from pathlib import Path
 from random import Random
 
 import numpy as np
@@ -48,7 +49,7 @@ def test_ai_search_depth_increases_as_belief_shrinks() -> None:
     assert ai_search_depth(25_000) == 3
 
 
-def test_load_ai_knowledge_rebuilds_stale_rule_cache(tmp_path) -> None:
+def test_load_ai_knowledge_rebuilds_stale_rule_cache(tmp_path: Path) -> None:
     cache = tmp_path / "ai.npz"
     encoding = Encoding(BIRD_RULES)
     universe = build_universe(BIRD_RULES, encoding, limit=2_000)
@@ -146,6 +147,27 @@ def test_ai_accuses_with_indistinguishable_pairs() -> None:
         knowledge = AiKnowledge(universe, encoding, full_belief(universe))
 
         assert isinstance(recommended_action(knowledge), PairCandidate)
+
+
+def test_ai_accuses_when_questions_only_distinguish_layouts_not_pairs() -> None:
+    encoding = Encoding(BIRD_RULES)
+    answers = np.asarray([[0, 1, 0, 1]], dtype=np.uint8)
+    answers = np.repeat(answers, encoding.question_count, axis=0)
+    available = np.zeros(encoding.question_count, dtype=np.uint8)
+    available[0] = 1
+    universe = Universe(
+        "test",
+        np.asarray([0, 0, 1, 1], dtype=np.uint8),
+        np.asarray([0, 0, 1, 1], dtype=np.uint8),
+        np.zeros((4, len(BIRD_RULES.cities)), dtype=np.uint8),
+        answers,
+        answers,
+        np.zeros(encoding.question_count, dtype=np.uint8),
+        available,
+    )
+    knowledge = AiKnowledge(universe, encoding, full_belief(universe))
+
+    assert isinstance(recommended_action(knowledge), PairCandidate)
 
 
 def test_wrong_ai_accusation_eliminates_one_of_three_pairs() -> None:

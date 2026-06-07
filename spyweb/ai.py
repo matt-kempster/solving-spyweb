@@ -159,7 +159,7 @@ def recommended_action(knowledge: AiKnowledge) -> PairCandidate | Question:
         max_lookahead_boards=int(knowledge.belief.size),
         branching_limit=AI_MINIMAX_BRANCHING,
     )
-    if all(len(score.immediate.partitions) == 1 for score in recommendation.scores):
+    if recommendation.best.immediate.worst_pairs >= len(candidates):
         return max(candidates, key=lambda candidate: candidate.boards)
     return knowledge.encoding.decode_question(recommendation.best.immediate.question)
 
