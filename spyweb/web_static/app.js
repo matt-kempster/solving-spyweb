@@ -17,12 +17,23 @@ async function act(payload) {
   const result = await response.json();
   if (!response.ok) { $("error").textContent = result.error; return; }
   state = result;
+  $("error").textContent = "";
   render();
 }
 
-function directions(card) {
-  const label = (items) => items.length ? items.join("/") : "–";
-  return `L ${label(card.look)} · H ${label(card.hear)} · P ${label(card.point)}`;
+const arrow = {N: "↑", NE: "↗", E: "→", SE: "↘", S: "↓", SW: "↙", W: "←", NW: "↖"};
+
+function cardHtml(card, options = {}) {
+  if (card.hideout) return `<div class="spy-card hideout ${options.draggable ? "draggable" : ""}" ${options.draggable ? `draggable="true" data-note="${card.noteId}"` : ""}><strong>HIDEOUT</strong></div>`;
+  const edges = {};
+  for (const [sense, short] of [["look", "L"], ["hear", "H"], ["point", "P"]]) {
+    for (const dir of card[sense]) {
+      (edges[dir] ||= []).push(`<span class="sense ${sense}" title="${sense} ${dir}">${short}${arrow[dir]}</span>`);
+    }
+  }
+  const markers = Object.entries(edges).map(([dir, values]) => `<span class="edge ${dir.toLowerCase()}">${values.join("")}</span>`).join("");
+  const drag = options.draggable ? `draggable="true" data-note="${card.noteId}"` : "";
+  return `<div class="spy-card ${options.draggable ? "draggable" : ""}" ${drag}>${markers}<strong>${card.name}</strong><div class="muted">${money(card.bounty)}</div></div>`;
 }
 
 function render() {
@@ -30,9 +41,9 @@ function render() {
   $("viewer").disabled = state.aiEnabled;
   const belief = state.aiBelief === null ? "" : ` · AI knowledge: ${state.aiBelief.pairs} pairs`;
   $("status").textContent = `Round ${state.round} · Turn: ${state.players[state.turn].name} · ${me.name} ${money(me.money)} · ${other.name} ${money(other.money)}${belief}`;
-  $("secret").textContent = `Ringleader: ${me.ringleader} · Hideout: ${me.hideout}`;
-  $("board").innerHTML = me.board.map(cell => `<div class="cell"><strong>${cell.city}</strong>${cell.occupant}</div>`).join("");
-  $("cards").innerHTML = state.opponentCards.map(card => `<div class="card"><strong>${card.name}</strong> ${money(card.bounty)}<div class="dirs">${directions(card)}</div></div>`).join("");
+  const ownByName = Object.fromEntries(state.ownCards.map(card => [card.name, card]));
+  $("secret").innerHTML = `<p>Ringleader: ${me.ringleader} · Hideout: ${me.hideout}</p>${cardHtml(ownByName[me.ringleader])}`;
+  $("board").innerHTML = me.board.map(cell => `<div class="cell"><strong>${cell.city}</strong>${cell.occupant === "HIDEOUT" ? cardHtml({hideout: true}) : cardHtml(ownByName[cell.occupant])}</div>`).join("");
   renderActions();
   renderKnowledge();
   renderHistory();
@@ -103,11 +114,10 @@ function saveNotes(notes) { localStorage.setItem(notesKey(), JSON.stringify(note
 
 function renderNotes() {
   const notes = savedNotes();
-  const items = [...state.opponentCards.map(c => ({id: `spy-${c.id}`, name: c.name, dirs: directions(c)})), {id: "hideout", name: "HIDEOUT", dirs: ""}];
-  const noteHtml = item => `<div class="note" draggable="true" data-note="${item.id}"><strong>${item.name}</strong><div class="dirs">${item.dirs}</div></div>`;
-  $("notes-pool").innerHTML = items.filter(x => !notes[x.id]).map(noteHtml).join("");
-  $("notes-grid").innerHTML = state.cities.map(city => `<div class="cell dropzone" data-city="${city.id}"><strong>${city.name}</strong>${items.filter(x => notes[x.id] === String(city.id)).map(noteHtml).join("")}</div>`).join("");
-  document.querySelectorAll(".note").forEach(el => el.addEventListener("dragstart", ev => ev.dataTransfer.setData("text/plain", el.dataset.note)));
+  const items = [...state.opponentCards.map(c => ({...c, noteId: `spy-${c.id}`})), {noteId: "hideout", hideout: true}];
+  $("notes-pool").innerHTML = `<div class="legend"><span class="sense look">L look</span><span class="sense hear">H hear</span><span class="sense point">P point</span></div>${items.filter(x => !notes[x.noteId]).map(item => cardHtml(item, {draggable: true})).join("")}`;
+  $("notes-grid").innerHTML = state.cities.map(city => `<div class="cell dropzone" data-city="${city.id}"><strong>${city.name}</strong>${items.filter(x => notes[x.noteId] === String(city.id)).map(item => cardHtml(item, {draggable: true})).join("")}</div>`).join("");
+  document.querySelectorAll(".draggable").forEach(el => el.addEventListener("dragstart", ev => ev.dataTransfer.setData("text/plain", el.dataset.note)));
   document.querySelectorAll(".dropzone").forEach(zone => {
     zone.addEventListener("dragover", ev => ev.preventDefault());
     zone.addEventListener("drop", ev => {

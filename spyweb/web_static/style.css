@@ -7,14 +7,28 @@ h2 { font-size: 1.05rem; margin-top: 1.3rem; }
 main { display: grid; grid-template-columns: repeat(3, minmax(260px, 1fr)); gap: 1rem; padding: 1rem; }
 section { min-width: 0; }
 .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
-.cell, .dropzone { min-height: 72px; border: 1px solid #38506a; border-radius: 6px; padding: .45rem; background: #182534; }
+.cell, .dropzone { min-height: 92px; border: 1px solid #38506a; border-radius: 6px; padding: .45rem; background: #182534; }
 .cell strong { display: block; color: #8fc7ff; font-size: .8rem; }
 .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: .4rem; }
-.card, .note { border: 1px solid #587898; border-radius: 5px; padding: .45rem; background: #203248; }
-.card strong, .note strong { color: #ffd47c; }
-.dirs { font: .8rem ui-monospace, monospace; margin-top: .25rem; }
-.note { cursor: grab; margin: .2rem; display: inline-block; }
-.notes-pool { margin-bottom: .5rem; }
+.spy-card { position: relative; box-sizing: border-box; min-height: 82px; border: 1px solid #587898; border-radius: 5px; padding: 1.4rem .5rem; background: #203248; text-align: center; }
+.spy-card strong { color: #ffd47c; }
+.spy-card.draggable { cursor: grab; }
+.spy-card.hideout { display: grid; place-items: center; color: #ffd47c; }
+.edge { position: absolute; display: flex; gap: .15rem; font: bold .68rem ui-monospace, monospace; }
+.edge.n { top: .1rem; left: 50%; transform: translateX(-50%); }
+.edge.ne { top: .1rem; right: .2rem; }
+.edge.e { right: .2rem; top: 50%; transform: translateY(-50%); flex-direction: column; }
+.edge.se { bottom: .1rem; right: .2rem; }
+.edge.s { bottom: .1rem; left: 50%; transform: translateX(-50%); }
+.edge.sw { bottom: .1rem; left: .2rem; }
+.edge.w { left: .2rem; top: 50%; transform: translateY(-50%); flex-direction: column; }
+.edge.nw { top: .1rem; left: .2rem; }
+.sense { border-radius: 3px; padding: .05rem .18rem; color: #101820; }
+.sense.look { background: #7ed6ff; }
+.sense.hear { background: #a7ef88; }
+.sense.point { background: #ffd47c; }
+.legend { display: flex; gap: .7rem; margin: .35rem 0; font-size: .78rem; }
+.cell .spy-card { margin-top: .3rem; }
 button, select { background: #29435f; color: #fff; border: 1px solid #6589ac; border-radius: 4px; padding: .4rem .55rem; margin: .2rem; }
 button:disabled { opacity: .4; }
 .muted { color: #a8b4c0; font-size: .85rem; }

@@ -204,6 +204,7 @@ def project_campaign(
             _player_record(state, 0, private=viewer == 0),
             _player_record(state, 1, private=viewer == 1),
         ],
+        "ownCards": _cards_record(state.players[viewer].rules),
         "opponentCards": _cards_record(state.players[opponent].rules),
         "cities": [
             {"id": int(city.id), "name": city.name} for city in state.players[viewer].rules.cities
