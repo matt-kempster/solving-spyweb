@@ -3,7 +3,6 @@ from dataclasses import replace
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
 from spyweb.core.game import (
     CAMPAIGN_TARGET,
-    ROUND_SALARY,
     Accusation,
     AskedQuestion,
     BoughtExtraAction,
@@ -133,7 +132,7 @@ def test_correct_accusation_awards_ringleader_bounty() -> None:
     assert won.actor.money == 100_000 + bounty
 
 
-def test_next_campaign_round_pays_salary_and_loser_starts() -> None:
+def test_next_campaign_round_preserves_money_and_loser_starts() -> None:
     state = new_game("Bird", BIRD_RULES, "Sea", SEA_RULES, seed=9)
     target = state.opponent.board
     won = accuse(state, target.ringleader, target.hideout)
@@ -142,8 +141,8 @@ def test_next_campaign_round_pays_salary_and_loser_starts() -> None:
 
     assert campaign.round_number == 2
     assert campaign.round.turn == 1
-    assert campaign.round.players[0].money == won.players[0].money + ROUND_SALARY
-    assert campaign.round.players[1].money == won.players[1].money + ROUND_SALARY
+    assert campaign.round.players[0].money == won.players[0].money
+    assert campaign.round.players[1].money == won.players[1].money
 
 
 def test_campaign_ends_at_round_end_by_money_or_continues_on_tie() -> None:

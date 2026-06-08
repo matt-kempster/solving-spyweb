@@ -284,12 +284,12 @@ def next_campaign_round(campaign: CampaignState, *, seed: int | None = None) -> 
     first = replace(
         state.players[0],
         board=random_board(state.players[0].rules, random),
-        money=state.players[0].money + ROUND_SALARY,
+        money=state.players[0].money,
     )
     second = replace(
         state.players[1],
         board=random_board(state.players[1].rules, random),
-        money=state.players[1].money + ROUND_SALARY,
+        money=state.players[1].money,
     )
     return CampaignState(
         GameState((first, second), turn=loser),
