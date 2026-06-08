@@ -156,7 +156,7 @@ def test_ai_accuses_with_indistinguishable_pairs() -> None:
         assert isinstance(recommended_action(knowledge), PairCandidate)
 
 
-def test_ai_accuses_when_questions_only_distinguish_layouts_not_pairs() -> None:
+def test_ai_asks_when_question_distinguishes_layouts_but_not_pairs_yet() -> None:
     encoding = Encoding(BIRD_RULES)
     answers = np.asarray([[0, 1, 0, 1]], dtype=np.uint8)
     answers = np.repeat(answers, encoding.question_count, axis=0)
@@ -174,7 +174,7 @@ def test_ai_accuses_when_questions_only_distinguish_layouts_not_pairs() -> None:
     )
     knowledge = AiKnowledge(universe, encoding, full_belief(universe))
 
-    assert isinstance(recommended_action(knowledge), PairCandidate)
+    assert isinstance(recommended_action(knowledge), Question)
 
 
 def test_wrong_ai_accusation_eliminates_one_of_three_pairs() -> None:

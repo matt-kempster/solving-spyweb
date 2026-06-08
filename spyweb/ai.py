@@ -205,9 +205,13 @@ def recommended_action(
         max_lookahead_boards=int(knowledge.belief.size),
         branching_limit=AI_MINIMAX_BRANCHING,
     )
-    if minimax_recommendation.best.immediate.worst_pairs >= len(candidates):
+    best = minimax_recommendation.best
+    if (
+        best.worst_leaf_pairs >= len(candidates)
+        and best.worst_leaf_boards >= int(knowledge.belief.size)
+    ):
         return max(candidates, key=lambda candidate: candidate.boards)
-    return knowledge.encoding.decode_question(minimax_recommendation.best.immediate.question)
+    return knowledge.encoding.decode_question(best.immediate.question)
 
 
 def ai_search_depth(board_count: int) -> int:
