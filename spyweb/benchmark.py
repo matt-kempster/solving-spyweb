@@ -48,6 +48,7 @@ from spyweb.solver.belief import (
 )
 from spyweb.solver.component_policy import rank_component_questions
 from spyweb.solver.encoding import Encoding
+from spyweb.solver.human_policy import rank_human_questions
 from spyweb.solver.hybrid_policy import (
     EXACT_ENDGAME_MAX_PAIRS,
     exact_endgame_action,
@@ -62,6 +63,7 @@ class SearchPolicy(StrEnum):
     GREEDY = "greedy"
     ADAPTIVE = "adaptive"
     COMPONENT = "component"
+    HUMAN = "human"
     HYBRID = "hybrid"
     NONNULL = "nonnull"
 
@@ -101,6 +103,7 @@ STRATEGIES: dict[str, Strategy] = {
         SpendPolicy.TEMPO,
         SetupPolicy.DEFENSIVE,
     ),
+    "human": Strategy("human", SearchPolicy.HUMAN, SpendPolicy.TEMPO, SetupPolicy.DEFENSIVE),
     "hybrid": Strategy("hybrid", SearchPolicy.HYBRID, SpendPolicy.TEMPO, SetupPolicy.DEFENSIVE),
     "nonnull": Strategy(
         "nonnull", SearchPolicy.NONNULL, SpendPolicy.TEMPO, SetupPolicy.DEFENSIVE
@@ -324,6 +327,18 @@ def _choose_action(
         )
         cache[key] = component_action
         return component_action
+    if strategy.search is SearchPolicy.HUMAN:
+        human_score = rank_human_questions(
+            ai.universe,
+            ai.encoding,
+            ai.belief,
+            knowledge.observations,
+        )[0]
+        human_action: PairCandidate | Question = ai.encoding.decode_question(
+            human_score.immediate.question
+        )
+        cache[key] = human_action
+        return human_action
     if strategy.search is SearchPolicy.NONNULL:
         score = best_non_nothing_question(
             ai.universe,
@@ -735,7 +750,7 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--strategies",
-        default="frugal,current,tempo,component,hybrid,nonnull",
+        default="frugal,current,tempo,component,human,hybrid,nonnull",
         help=f"comma-separated strategies: {','.join(STRATEGIES)}",
     )
     parser.add_argument("--json-out", type=Path)

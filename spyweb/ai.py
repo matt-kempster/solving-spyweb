@@ -29,6 +29,7 @@ from spyweb.solver.belief import (
 )
 from spyweb.solver.component_policy import Observation, rank_component_questions
 from spyweb.solver.encoding import Encoding
+from spyweb.solver.human_policy import rank_human_questions
 from spyweb.solver.policy import recommend_questions
 from spyweb.solver.universe import Universe, build_universe, universe_board_count
 
@@ -42,6 +43,7 @@ AI_DEFENSIVE_LAYOUT_POOL = 32
 class AiStrategy(StrEnum):
     MINIMAX = "minimax"
     COMPONENT = "component"
+    HUMAN = "human"
 
 
 @dataclass(frozen=True)
@@ -171,6 +173,14 @@ def recommended_action(
             observations,
         )[0]
         return knowledge.encoding.decode_question(component_score.immediate.question)
+    if strategy is AiStrategy.HUMAN:
+        human_score = rank_human_questions(
+            knowledge.universe,
+            knowledge.encoding,
+            knowledge.belief,
+            observations,
+        )[0]
+        return knowledge.encoding.decode_question(human_score.immediate.question)
 
     depth = ai_search_depth(int(knowledge.belief.size))
     minimax_recommendation = recommend_questions(

@@ -109,8 +109,8 @@ campaign-aware and conservative: the AI only pays when the resulting immediate
 accusation guarantees a campaign-critical outcome.
 
 When playing against the AI in the web UI, use the header's **AI strategy**
-selector to switch between the bounded minimax policy and the component-building
-policy.
+selector to switch between the bounded minimax policy, the original
+component-building policy, and a human-style component policy.
 
 Run a repeatable AI-vs-AI strategy and faction benchmark:
 
@@ -139,6 +139,11 @@ solving. It prioritizes questions that reduce possible ringleaders, grow or
 anchor known connected components, and are likely to produce a spy or other
 non-Nothing answer. Its answer probabilities are conditioned on the current
 belief, so its preferred directions adapt as the possible board shapes narrow.
+The separate `human` strategy follows an explicit explore/build/leader-hunt
+state machine: it starts with spies that have several useful directions, moves
+away from early Nothing answers, expands its best known component, and switches
+to ruling out ringleaders once the hideout is fixed. Its behavioral contract is
+documented in [`docs/strategies/human-component.md`](docs/strategies/human-component.md).
 It also includes an experimental `hybrid` strategy that uses component scores
 to shortlist candidate questions, applies bounded minimax inside that shortlist,
 and switches to an exact solve-to-accusation search in small endgames.

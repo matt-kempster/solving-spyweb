@@ -109,3 +109,12 @@ def test_hybrid_strategy_selects_an_action(tmp_path: Path) -> None:
     action = _choose_action(knowledge, STRATEGIES["hybrid"], {})
 
     assert action is not None
+
+
+def test_human_strategy_selects_an_action(tmp_path: Path) -> None:
+    assets = load_assets(tmp_path, 1_000)
+    knowledge = TrackedKnowledge(assets.knowledge_of(Faction.BIRD))
+
+    action = _choose_action(knowledge, STRATEGIES["human"], {})
+
+    assert action is not None
