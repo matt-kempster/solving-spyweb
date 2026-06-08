@@ -100,3 +100,12 @@ def test_policy_action_cache_reuses_identical_belief(tmp_path: Path) -> None:
     assert second == first
     assert size_after_first == 1
     assert len(cache) == size_after_first
+
+
+def test_hybrid_strategy_selects_an_action(tmp_path: Path) -> None:
+    assets = load_assets(tmp_path, 1_000)
+    knowledge = TrackedKnowledge(assets.knowledge_of(Faction.BIRD))
+
+    action = _choose_action(knowledge, STRATEGIES["hybrid"], {})
+
+    assert action is not None

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from spyweb.core.catalog import FIXTURE_RULES
@@ -13,6 +14,7 @@ from spyweb.solver.belief import (
     rank_questions,
 )
 from spyweb.solver.encoding import Encoding
+from spyweb.solver.hybrid_policy import exact_endgame_action, recommend_hybrid_questions
 from spyweb.solver.policy import recommend_questions
 from spyweb.solver.replay import ReplayState, apply_event
 from spyweb.solver.universe import Universe, build_universe
@@ -96,3 +98,31 @@ def test_policy_limits_only_recursive_question_candidates() -> None:
 
     assert result.effective_depth == 2
     assert len(result.scores) == int(universe.available_question.sum())
+
+
+def test_hybrid_policy_uses_component_shortlist_and_exact_endgame() -> None:
+    encoding = Encoding(FIXTURE_RULES)
+    universe = build_universe(FIXTURE_RULES, encoding, 500)
+    belief = full_belief(universe)
+
+    hybrid = recommend_hybrid_questions(
+        universe,
+        encoding,
+        belief,
+        (),
+        depth=1,
+        max_lookahead_boards=500,
+        branching_limit=5,
+    )
+
+    assert len(hybrid.scores) == 8
+
+    pair_keys = universe.ringleader * universe.city_count + universe.hideout
+    endgame = np.asarray(
+        [int(np.flatnonzero(pair_keys == key)[0]) for key in np.unique(pair_keys)[:3]],
+        dtype=np.uint32,
+    )
+    exact = exact_endgame_action(universe, endgame)
+
+    assert exact.actions <= 3
+    assert (exact.question is None) != (exact.accusation is None)

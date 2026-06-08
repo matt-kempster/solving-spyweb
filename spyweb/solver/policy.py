@@ -89,13 +89,14 @@ def recommend_questions(
     depth: int = 1,
     max_lookahead_boards: int = 10_000,
     branching_limit: int | None = None,
+    root_questions: tuple[QuestionScore, ...] | None = None,
 ) -> Recommendation:
     if depth < 1:
         raise ValueError("Policy depth must be at least 1")
     if branching_limit is not None and branching_limit < 1:
         raise ValueError("Branching limit must be at least 1")
     effective_depth = depth if belief.size <= max_lookahead_boards else 1
-    ranked = rank_questions(universe, belief)
+    ranked = rank_questions(universe, belief) if root_questions is None else root_questions
     if effective_depth == 1:
         return Recommendation(
             depth,

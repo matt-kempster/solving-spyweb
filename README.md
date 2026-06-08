@@ -139,6 +139,9 @@ solving. It prioritizes questions that reduce possible ringleaders, grow or
 anchor known connected components, and are likely to produce a spy or other
 non-Nothing answer. Its answer probabilities are conditioned on the current
 belief, so its preferred directions adapt as the possible board shapes narrow.
+It also includes an experimental `hybrid` strategy that uses component scores
+to shortlist candidate questions, applies bounded minimax inside that shortlist,
+and switches to an exact solve-to-accusation search in small endgames.
 
 Use a representative development sample:
 

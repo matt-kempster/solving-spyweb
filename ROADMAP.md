@@ -44,6 +44,8 @@ UI backed by the same authoritative rules and AI modules.
 - [x] Add a component-building strategy that prioritizes ringleader elimination,
   connected-component growth and anchoring, likely spy answers, and
   belief-conditioned non-Nothing directions.
+- [x] Add an experimental hybrid strategy that blends component-guided candidate
+  ordering with bounded minimax and exact small-pair endgame search.
 - Continue optimizing exact-universe policy evaluation. Reusable policy
   decisions and faster partition scoring reduced a depth-1 exact campaign to
   roughly 45 seconds, but large exact matrices are not yet routine.
