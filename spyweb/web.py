@@ -23,6 +23,8 @@ from spyweb.ai import (
     reset_ai_knowledge,
     should_buy_extra_for_accusation,
     should_buy_second,
+    should_buy_second_for_information,
+    should_buy_tempo_extra,
 )
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
 from spyweb.core.game import (
@@ -238,7 +240,7 @@ def project_campaign(
     ai_pending_question: Question | None = None,
     human_player: int = 0,
     ai_player: int | None = None,
-    ai_strategy: AiStrategy = AiStrategy.MINIMAX,
+    ai_strategy: AiStrategy = AiStrategy.CURRENT,
     setup_enabled: bool = False,
     setup_ready: frozenset[int] = frozenset(),
 ) -> dict[str, JsonValue]:
@@ -349,7 +351,7 @@ class WebSession:
     ai_knowledge: AiKnowledge | None = None
     human_player: int = 0
     ai_player: int | None = None
-    ai_strategy: AiStrategy = AiStrategy.MINIMAX
+    ai_strategy: AiStrategy = AiStrategy.CURRENT
     ai_observations: tuple[tuple[int, ...], ...] = ()
     ai_pending_question: Question | None = None
     setup_enabled: bool = False
@@ -561,9 +563,16 @@ class WebSession:
                 event = state.history[-1]
                 if pending is None or not isinstance(event, AskedQuestion):
                     raise RuntimeError("Invalid AI second-answer state")
-                if state.actor.money >= ACTION_COST and should_buy_second(
-                    state, self.ai_knowledge, pending.question, event.answer
-                ):
+                buy_second = (
+                    should_buy_second_for_information(
+                        self.ai_knowledge, pending.question, event.answer
+                    )
+                    if self.ai_strategy is AiStrategy.TEMPO
+                    else should_buy_second(
+                        state, self.ai_knowledge, pending.question, event.answer
+                    )
+                )
+                if state.actor.money >= ACTION_COST and buy_second:
                     state = buy_second_answer(state)
                     second = state.history[-1]
                     if not isinstance(second, BoughtSecondAnswer):
@@ -583,7 +592,11 @@ class WebSession:
                     )
                 else:
                     state = decline_second_answer(state)
-            elif should_buy_extra_for_accusation(state, self.ai_knowledge):
+            elif (
+                should_buy_tempo_extra(state, self.ai_knowledge)
+                if self.ai_strategy is AiStrategy.TEMPO
+                else should_buy_extra_for_accusation(state, self.ai_knowledge)
+            ):
                 state = buy_extra_action(state)
             else:
                 state = end_turn(state)
@@ -627,7 +640,7 @@ def _cache_for_faction(cache: Path, faction: str) -> Path:
 
 
 def _new_web_session(
-    human_faction: str, ai_strategy: AiStrategy = AiStrategy.MINIMAX
+    human_faction: str, ai_strategy: AiStrategy = AiStrategy.CURRENT
 ) -> WebSession:
     if human_faction not in ("bird", "sea"):
         raise ValueError("Faction must be bird or sea")

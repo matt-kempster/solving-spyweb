@@ -109,9 +109,11 @@ campaign-aware and conservative: the AI only pays when the resulting immediate
 accusation guarantees a campaign-critical outcome.
 
 When playing against the AI in the web UI, use the header's **AI strategy**
-selector to switch between the bounded minimax policy, the original
-component-building policy, a human-style component policy, and human-prior
-minimax.
+selector to switch between `current`, `tempo`, `component`, `human`, and
+`prior`. These names match the benchmark. `current` and `tempo` share the
+adaptive bounded-minimax question policy; `current` spends only for
+campaign-critical guaranteed accusations, while `tempo` buys immediately
+useful second answers and extra actions that convert into accusations.
 
 Run a repeatable AI-vs-AI strategy and faction benchmark:
 

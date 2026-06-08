@@ -3,6 +3,7 @@ let artManifest;
 const $ = (id) => document.getElementById(id);
 const money = (n) => `$${n.toLocaleString()}`;
 const AI_KNOWLEDGE_KEY = "spyweb-show-ai-knowledge";
+const THEME_KEY = "spyweb-theme";
 const COMPONENT_COUNT = 9;
 const setupLayouts = {};
 const transparentDragImage = new Image();
@@ -33,6 +34,7 @@ async function loadArtManifest() {
 
 async function act(payload) {
   const resetsSetup = payload.type === "choose_faction" || payload.type === "new_game";
+  if (payload.type === "new_game") clearLocalAnnotations();
   if (payload.type === "choose_faction" || payload.type === "new_game") {
     $("error").textContent = `Starting a new ${payload.faction || state.players[state.humanPlayer].faction} game…`;
   } else {
@@ -69,7 +71,9 @@ function cardHtml(card, options = {}) {
   const drag = options.draggable ? `draggable="true" data-note="${card.noteId}"` : "";
   const art = image ? `<img class="card-art" src="${image}" alt="">` : "";
   const opponent = options.opponent ? `data-opponent-spy="${card.id}"` : "";
-  return `<div class="spy-card ${image ? "with-art" : ""} ${options.draggable ? "draggable" : ""}" ${drag} ${opponent}>${art}${markers}<strong>${card.name}</strong><div class="muted">${money(card.bounty)}</div></div>`;
+  const mark = options.markKey ? `data-mark-key="${options.markKey}"` : "";
+  const marked = options.markKey && savedMarks()[options.markKey] ? "marked" : "";
+  return `<div class="spy-card ${image ? "with-art" : ""} ${options.draggable ? "draggable" : ""} ${marked}" ${drag} ${opponent} ${mark}>${art}${markers}<strong>${card.name}</strong><div class="muted">${money(card.bounty)}</div></div>`;
 }
 
 function closeQuestionMenu() {
@@ -132,13 +136,13 @@ function shuffleSetupLayout() {
 
 function renderPrivateBoard(me, ownByName) {
   if (!state.setupEnabled || state.setupReady[state.viewer]) {
-    $("board").innerHTML = me.board.map(cell => `<div class="cell"><strong>${cell.city}</strong>${cell.occupant === "HIDEOUT" ? cardHtml({hideout: true}) : cardHtml(ownByName[cell.occupant])}</div>`).join("");
+    $("board").innerHTML = me.board.map(cell => `<div class="cell"><strong>${cell.city}</strong>${cell.occupant === "HIDEOUT" ? cardHtml({hideout: true}) : cardHtml(ownByName[cell.occupant], {markKey: `own-${ownByName[cell.occupant].id}`})}</div>`).join("");
     return;
   }
   const layout = setupLayout();
   $("board").innerHTML = me.board.map((cell, city) => {
     const occupant = layout[city];
-    const card = occupant === "HIDEOUT" ? cardHtml({hideout: true}) : cardHtml(ownByName[occupant]);
+    const card = occupant === "HIDEOUT" ? cardHtml({hideout: true}) : cardHtml(ownByName[occupant], {markKey: `own-${ownByName[occupant].id}`});
     return `<div class="cell setup-cell" data-setup-city="${city}"><strong>${cell.city}</strong><div class="setup-card" draggable="true" data-setup-city="${city}">${card}</div></div>`;
   }).join("");
   document.querySelectorAll(".setup-card").forEach(card => {
@@ -174,7 +178,7 @@ function render() {
   $("status").textContent = `Round ${state.round} · Turn: ${state.players[state.turn].name} · ${me.name} ${money(me.money)} · ${other.name} ${money(other.money)}${belief}`;
   const ownByName = Object.fromEntries(state.ownCards.map(card => [card.name, card]));
   const choosingLayout = state.setupEnabled && !state.setupReady[state.viewer];
-  $("secret").innerHTML = `<p>Ringleader: ${me.ringleader}${choosingLayout ? "" : ` · Hideout: ${me.hideout}`}</p>${cardHtml(ownByName[me.ringleader])}`;
+  $("secret").innerHTML = `<p>Ringleader: ${me.ringleader}${choosingLayout ? "" : ` · Hideout: ${me.hideout}`}</p>${cardHtml(ownByName[me.ringleader], {markKey: `own-${ownByName[me.ringleader].id}`})}`;
   renderPrivateBoard(me, ownByName);
   renderActions();
   renderKnowledge();
@@ -299,8 +303,27 @@ function renderResponse() {
 }
 
 function notesKey() { return `spyweb-notes-${state.viewer}-${state.players[1-state.viewer].faction}`; }
+function marksKey() { return `spyweb-marks-${state.viewer}-${state.players[1-state.viewer].faction}`; }
 function savedNotes() { return JSON.parse(localStorage.getItem(notesKey()) || "{}"); }
 function saveNotes(notes) { localStorage.setItem(notesKey(), JSON.stringify(notes)); }
+function savedMarks() { return JSON.parse(localStorage.getItem(marksKey()) || "{}"); }
+function saveMarks(marks) { localStorage.setItem(marksKey(), JSON.stringify(marks)); }
+function clearLocalAnnotations() {
+  localStorage.removeItem(notesKey());
+  localStorage.removeItem(marksKey());
+}
+
+function bindCardMarks() {
+  document.querySelectorAll("[data-mark-key]").forEach(card => {
+    card.addEventListener("click", event => {
+      if (event.button !== 0) return;
+      const marks = savedMarks(), key = card.dataset.markKey;
+      if (marks[key]) delete marks[key]; else marks[key] = true;
+      saveMarks(marks);
+      document.querySelectorAll(`[data-mark-key="${key}"]`).forEach(match => match.classList.toggle("marked", Boolean(marks[key])));
+    });
+  });
+}
 
 function renderNotes() {
   const notes = savedNotes();
@@ -308,13 +331,13 @@ function renderNotes() {
     ...state.opponentCards.map(c => ({...c, noteId: `spy-${c.id}`})),
     {noteId: "hideout", hideout: true}
   ];
-  $("notes-pool").innerHTML = `<div class="legend"><span class="sense look">L look</span><span class="sense hear">H hear</span><span class="sense point">P point</span></div>${items.filter(x => !notes[x.noteId]).map(item => cardHtml(item, {draggable: true, opponent: !item.hideout})).join("")}`;
+  $("notes-pool").innerHTML = `<div class="legend"><span class="sense look">L look</span><span class="sense hear">H hear</span><span class="sense point">P point</span></div>${items.filter(x => !notes[x.noteId]).map(item => cardHtml(item, {draggable: true, opponent: !item.hideout, markKey: item.hideout ? null : `opp-${item.id}`})).join("")}`;
   const landmarks = state.landmarks.map(item => `<div class="landmark landmark-${item.name.toLowerCase()}">${item.name}</div>`).join("");
-  const cities = state.cities.map(city => `<div class="cell dropzone" data-city="${city.id}"><strong>${city.name}</strong>${items.filter(x => notes[x.noteId] === String(city.id)).map(item => cardHtml(item, {draggable: true, opponent: !item.hideout})).join("")}</div>`).join("");
+  const cities = state.cities.map(city => `<div class="cell dropzone" data-city="${city.id}"><strong>${city.name}</strong>${items.filter(x => notes[x.noteId] === String(city.id)).map(item => cardHtml(item, {draggable: true, opponent: !item.hideout, markKey: item.hideout ? null : `opp-${item.id}`})).join("")}</div>`).join("");
   $("notes-grid").innerHTML = landmarks + cities;
   $("component-grid").innerHTML = Array.from({length: COMPONENT_COUNT}, (_, index) => {
     const location = `component-${index}`;
-    return `<div class="cell component-bin dropzone" data-location="${location}">${items.filter(x => notes[x.noteId] === location).map(item => cardHtml(item, {draggable: true, opponent: !item.hideout})).join("")}</div>`;
+    return `<div class="cell component-bin dropzone" data-location="${location}">${items.filter(x => notes[x.noteId] === location).map(item => cardHtml(item, {draggable: true, opponent: !item.hideout, markKey: item.hideout ? null : `opp-${item.id}`})).join("")}</div>`;
   }).join("");
   document.querySelectorAll("[data-opponent-spy]").forEach(card => card.addEventListener("contextmenu", event => openQuestionMenu(event, Number(card.dataset.opponentSpy))));
   document.querySelectorAll(".draggable").forEach(el => {
@@ -337,12 +360,19 @@ function renderNotes() {
       saveNotes(n); renderNotes();
     });
   });
+  bindCardMarks();
 }
 
 $("viewer").addEventListener("change", load);
 $("human-faction").addEventListener("change", () => act({type: "choose_faction", faction: $("human-faction").value}));
 $("ai-strategy").addEventListener("change", () => act({type: "set_ai_strategy", strategy: $("ai-strategy").value}));
 $("new-game").addEventListener("click", () => act({type: "new_game"}));
+$("theme").value = localStorage.getItem(THEME_KEY) || "dark";
+document.documentElement.dataset.theme = $("theme").value;
+$("theme").addEventListener("change", () => {
+  localStorage.setItem(THEME_KEY, $("theme").value);
+  document.documentElement.dataset.theme = $("theme").value;
+});
 $("show-ai-knowledge").addEventListener("change", () => {
   localStorage.setItem(AI_KNOWLEDGE_KEY, $("show-ai-knowledge").checked);
   render();

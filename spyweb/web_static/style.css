@@ -1,4 +1,5 @@
 :root { --card-width: 127px; --drop-cell-height: 134px; --grid-gap: .4rem; color-scheme: dark; font-family: system-ui, sans-serif; background: #111821; color: #eaf0f6; }
+:root[data-theme="light"] { color-scheme: light; background: #edf3f8; color: #182534; }
 body { margin: 0; }
 header { display: flex; gap: 1.5rem; align-items: center; padding: .8rem 1.2rem; background: #182534; border-bottom: 1px solid #38506a; }
 h1, h2 { margin: .5rem 0; }
@@ -31,6 +32,7 @@ section { min-width: 0; }
 .component-bin { box-sizing: border-box; height: var(--drop-cell-height); min-height: 0; overflow: hidden; border-style: dashed; }
 .spy-card { position: relative; box-sizing: border-box; width: min(var(--card-width), 100%); min-height: 82px; margin-left: auto; margin-right: auto; border: 1px solid #587898; border-radius: 5px; padding: 1.4rem .5rem; background: #203248; text-align: center; }
 .spy-card.with-art { overflow: hidden; min-height: 0; padding: 0; background: #111821; }
+.spy-card.marked { filter: brightness(1.15); box-shadow: 0 0 0 2px #ffd47caa; }
 .card-art { display: block; width: 100%; height: auto; opacity: 1; }
 .spy-card.with-art > strong,
 .spy-card.with-art > .muted { display: none; }
@@ -74,6 +76,25 @@ ol, ul { padding-left: 1.3rem; }
 .asked-sense.unasked { border: 1px solid #587898; color: #a8b4c0; }
 .asked-sense.unavailable { border: 1px solid #3c4650; color: #5f6d78; text-decoration: line-through; }
 .dir-text { color: #ffd47c; font-weight: bold; }
+:root[data-theme="light"] header,
+:root[data-theme="light"] .response-card,
+:root[data-theme="light"] .cell,
+:root[data-theme="light"] .dropzone,
+:root[data-theme="light"] .context-menu { background: #fff; border-color: #9ab1c7; }
+:root[data-theme="light"] .spy-card { background: #dce9f4; border-color: #829db5; }
+:root[data-theme="light"] .spy-card.with-art { background: #fff; }
+:root[data-theme="light"] .spy-card.marked { filter: brightness(1.08); box-shadow: 0 0 0 3px #d59a20; }
+:root[data-theme="light"] .muted { color: #53697b; }
+:root[data-theme="light"] .cell strong { color: #1768a8; }
+:root[data-theme="light"] .spy-card strong,
+:root[data-theme="light"] .context-menu strong,
+:root[data-theme="light"] h4,
+:root[data-theme="light"] .dir-text { color: #8a5a00; }
+:root[data-theme="light"] button,
+:root[data-theme="light"] select { background: #e2edf6; color: #182534; border-color: #829db5; }
+:root[data-theme="light"] .landmark { background: #fff4cf; color: #735000; }
+:root[data-theme="light"] .dropzone.drag-over,
+:root[data-theme="light"] .setup-cell.drag-over { background: #e9f2fa; }
 @media (max-width: 1200px) {
   main { grid-template-columns: 1fr; }
   .opponent-column, .player-column { width: auto; }

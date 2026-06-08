@@ -42,7 +42,8 @@ AI_DEFENSIVE_LAYOUT_POOL = 32
 
 
 class AiStrategy(StrEnum):
-    MINIMAX = "minimax"
+    CURRENT = "current"
+    TEMPO = "tempo"
     COMPONENT = "component"
     HUMAN = "human"
     PRIOR = "prior"
@@ -160,7 +161,7 @@ def accusation_candidate(knowledge: AiKnowledge) -> PairCandidate | None:
 def recommended_action(
     knowledge: AiKnowledge,
     *,
-    strategy: AiStrategy = AiStrategy.MINIMAX,
+    strategy: AiStrategy = AiStrategy.CURRENT,
     observations: tuple[Observation, ...] = (),
 ) -> PairCandidate | Question:
     candidates = pair_candidates(knowledge.universe, knowledge.belief)
@@ -290,4 +291,28 @@ def should_buy_second(
             bounty=state.opponent.rules.spies[ringleader].bounty,
         )
         for ringleader, _ in possible_pairs
+    )
+
+
+def should_buy_second_for_information(
+    knowledge: AiKnowledge, question: Question, first: Answer
+) -> bool:
+    qid = knowledge.encoding.question_id(question)
+    first_code = knowledge.encoding.answer_code(first)
+    option = next(
+        option
+        for option in score_dual_payment(knowledge.universe, knowledge.belief, qid)
+        if option.first == first_code
+    )
+    return (option.paid_worst_pairs, option.paid_worst_boards) < (
+        option.no_pay_pairs,
+        option.no_pay_boards,
+    )
+
+
+def should_buy_tempo_extra(state: GameState, knowledge: AiKnowledge) -> bool:
+    return (
+        accusation_candidate(knowledge) is not None
+        and not state.extra_action_bought
+        and state.actor.money >= ACTION_COST
     )

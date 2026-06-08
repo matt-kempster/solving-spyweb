@@ -12,6 +12,7 @@ from spyweb.ai import (
     observe_accusation,
     recommended_action,
     should_buy_extra_for_accusation,
+    should_buy_tempo_extra,
 )
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
 from spyweb.core.game import CAMPAIGN_TARGET, GameState, TurnPhase, new_game
@@ -83,6 +84,12 @@ def test_ai_only_buys_extra_accusation_for_campaign_critical_win() -> None:
 
     campaign_point = _ai_post_action_state(CAMPAIGN_TARGET, 100_000)
     assert should_buy_extra_for_accusation(campaign_point, knowledge)
+
+
+def test_tempo_buys_extra_action_for_any_definitive_accusation() -> None:
+    knowledge = _knowledge_with_one_pair()
+
+    assert should_buy_tempo_extra(_ai_post_action_state(100_000, 100_000), knowledge)
 
 
 def test_ai_accuses_instead_of_asking_again_with_two_pairs() -> None:
