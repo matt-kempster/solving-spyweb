@@ -16,6 +16,13 @@ UI backed by the same authoritative rules and AI modules.
 - Add an auditable setup event without revealing the
   opponent's private layout.
 
+## Round Flow
+
+- Reveal the whole board at the end of a round in the web UI.
+- Fix the web UI bug where reaching $1,000,000 does not immediately end the
+  campaign.
+- Clear notes automatically when starting a new round.
+
 ## Deduction UI
 
 - [x] Support a 3x3 scratch-space for groups whose relative arrangement is
@@ -27,6 +34,8 @@ UI backed by the same authoritative rules and AI modules.
 - Visualize belief-derived components and possible ringleaders/hideouts.
 - Keep AI knowledge hidden by default so the player cannot bias decisions based
   on how close the AI is. The web UI now has an explicit show/hide control.
+- Clear translucency state when clearing notes.
+- Improve the scratch notes area layout and usability.
 
 ## Stronger AI
 
@@ -66,6 +75,7 @@ UI backed by the same authoritative rules and AI modules.
 
 - Give the web UI a stronger period board-game presentation while preserving
   clear card directions and accessibility.
+- Improve the response pane presentation and persistence.
 - Use the following BoardGameGeek scans as visual references:
   - https://cf.geekdo-images.com/odaVXXDOooc01Yzb8Yq4IA__imagepage/img/FuDbnHvPf4WKCcGidM39iPp7c84=/fit-in/900x600/filters:no_upscale():strip_icc()/pic283090.jpg
   - https://cf.geekdo-images.com/VGzo42xNf1JsHaeGWjjAhA__imagepage/img/3yzPbvWbJ5E6L827m0J1oMzXhUU=/fit-in/900x600/filters:no_upscale():strip_icc()/pic283092.jpg
