@@ -2,7 +2,7 @@ import numpy as np
 
 from spyweb.ai import AiKnowledge, AiStrategy
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
-from spyweb.core.game import TurnPhase, ask_question, legal_questions, new_campaign
+from spyweb.core.game import TurnPhase, accuse, ask_question, legal_questions, new_campaign
 from spyweb.core.model import SpyAnswer
 from spyweb.core.rules import answer_question, validate_board
 from spyweb.solver.belief import full_belief
@@ -36,6 +36,31 @@ def test_projection_only_reveals_viewers_private_board() -> None:
     deductions = record["deductions"]
     assert isinstance(deductions, list)
     assert len(deductions) == 2
+    assert record["roundReveal"] is None
+
+
+def test_projection_reveals_both_answers_after_round_end() -> None:
+    campaign = new_campaign("Bird", BIRD_RULES, "Sea", SEA_RULES, seed=4)
+    state = campaign.round
+    target = state.players[1].board
+    campaign = campaign.__class__(accuse(state, target.ringleader, target.hideout))
+
+    record = project_campaign(campaign, 0)
+
+    reveal = record["roundReveal"]
+    assert isinstance(reveal, list)
+    assert reveal == [
+        {
+            "player": 0,
+            "ringleader": state.players[0].rules.spies[int(state.players[0].board.ringleader)].name,
+            "hideout": state.players[0].rules.cities[int(state.players[0].board.hideout)].name,
+        },
+        {
+            "player": 1,
+            "ringleader": state.players[1].rules.spies[int(state.players[1].board.ringleader)].name,
+            "hideout": state.players[1].rules.cities[int(state.players[1].board.hideout)].name,
+        },
+    ]
 
 
 def test_projection_builds_event_derived_deduction_graph() -> None:

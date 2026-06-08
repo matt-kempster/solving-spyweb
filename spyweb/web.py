@@ -145,6 +145,19 @@ def _player_record(state: GameState, player_index: int, *, private: bool) -> dic
     return record
 
 
+def _round_reveal_record(state: GameState) -> list[JsonValue] | None:
+    if state.winner is None:
+        return None
+    return [
+        {
+            "player": player_index,
+            "ringleader": player.rules.spies[int(player.board.ringleader)].name,
+            "hideout": player.rules.cities[int(player.board.hideout)].name,
+        }
+        for player_index, player in enumerate(state.players)
+    ]
+
+
 def _cards_record(rules: Rules) -> list[JsonValue]:
     return [
         {
@@ -260,6 +273,7 @@ def project_campaign(
         "round": campaign.round_number,
         "campaignWinner": campaign.winner,
         "winner": state.winner,
+        "roundReveal": _round_reveal_record(state),
         "turn": state.turn,
         "phase": state.phase.value,
         "extraActionBought": state.extra_action_bought,

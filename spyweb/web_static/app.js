@@ -211,7 +211,7 @@ function renderActions() {
     return;
   }
   if (state.winner !== null) {
-    $("actions").innerHTML = `<p>${state.players[state.winner].name} won the round.</p><button id="next">Start next round</button>`;
+    $("actions").innerHTML = `<p>${state.players[state.winner].name} won the round.</p>${roundRevealHtml()}<button id="next">Start next round</button>`;
     $("next").onclick = () => act({type: "next_round"});
     return;
   }
@@ -241,6 +241,15 @@ function renderActions() {
     <p>Right-click an opponent card to ask a question.</p>
     <select id="suspect">${suspects}</select><select id="city">${cities}</select><button id="accuse">Accuse</button>`;
   $("accuse").onclick = () => act({type: "accuse", ringleader: Number($("suspect").value), hideout: Number($("city").value)});
+}
+
+function roundRevealHtml() {
+  if (!state.roundReveal) return "";
+  const rows = state.roundReveal.map(item => {
+    const player = state.players[item.player];
+    return `<li><strong>${player.name}</strong>: ${item.ringleader} in ${item.hideout}</li>`;
+  }).join("");
+  return `<div class="round-reveal"><strong>Final answers</strong><ul>${rows}</ul></div>`;
 }
 
 function renderKnowledge() {
