@@ -6,6 +6,7 @@ const AI_KNOWLEDGE_KEY = "spyweb-show-ai-knowledge";
 const THEME_KEY = "spyweb-theme";
 const COMPONENT_COUNT = 9;
 const setupLayouts = {};
+const accusationSelection = {spy: null, city: null};
 const transparentDragImage = new Image();
 transparentDragImage.src = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
 
@@ -47,6 +48,7 @@ async function act(payload) {
   const result = await response.json();
   if (!response.ok) { $("error").textContent = result.error; return; }
   state = result;
+  if (["choose_faction", "new_game", "next_round", "accuse"].includes(payload.type)) clearAccusationSelection();
   if (resetsSetup) clearSetupLayouts();
   $("error").textContent = "";
   render();
@@ -59,7 +61,14 @@ function cardImage(card) {
 }
 
 function cardHtml(card, options = {}) {
-  if (card.hideout || card.landmark) return `<div class="spy-card hideout ${options.draggable ? "draggable" : ""}" ${options.draggable ? `draggable="true" data-note="${card.noteId}"` : ""}><strong>${card.landmark || "HIDEOUT"}</strong></div>`;
+  if (card.hideout || card.landmark) {
+    const drag = options.draggable ? `draggable="true" data-note="${card.noteId}"` : "";
+    const mark = options.markKey ? `data-mark-key="${options.markKey}"` : "";
+    const marked = options.markKey && savedMarks()[options.markKey] ? "marked" : "";
+    const accuseCity = options.accuseCity !== undefined ? `data-accuse-city="${options.accuseCity}"` : "";
+    const accused = options.accuseCity !== undefined && accusationSelection.city === Number(options.accuseCity) ? "accused" : "";
+    return `<div class="spy-card hideout ${options.draggable ? "draggable" : ""} ${marked} ${accused}" ${drag} ${mark} ${accuseCity}><strong>${card.landmark || "HIDEOUT"}</strong></div>`;
+  }
   const image = cardImage(card);
   const edges = {};
   for (const [sense, short] of [["look", "L"], ["hear", "H"], ["point", "P"]]) {
@@ -73,7 +82,8 @@ function cardHtml(card, options = {}) {
   const opponent = options.opponent ? `data-opponent-spy="${card.id}"` : "";
   const mark = options.markKey ? `data-mark-key="${options.markKey}"` : "";
   const marked = options.markKey && savedMarks()[options.markKey] ? "marked" : "";
-  return `<div class="spy-card ${image ? "with-art" : ""} ${options.draggable ? "draggable" : ""} ${marked}" ${drag} ${opponent} ${mark}>${art}${markers}<strong>${card.name}</strong><div class="muted">${money(card.bounty)}</div></div>`;
+  const accused = options.opponent && accusationSelection.spy === card.id ? "accused" : "";
+  return `<div class="spy-card ${image ? "with-art" : ""} ${options.draggable ? "draggable" : ""} ${marked} ${accused}" ${drag} ${opponent} ${mark}>${art}${markers}<strong>${card.name}</strong><div class="muted">${money(card.bounty)}</div></div>`;
 }
 
 function closeQuestionMenu() {
@@ -85,11 +95,28 @@ function askQuestion(question, firstAnswerIndex = 0) {
   act({type: "ask", spy: question.spy, sense: question.sense, firstAnswerIndex});
 }
 
+function selectAccusedSpy(spyId) {
+  accusationSelection.spy = spyId;
+  closeQuestionMenu();
+  render();
+}
+
+function selectAccusedCity(cityId) {
+  accusationSelection.city = cityId;
+  closeQuestionMenu();
+  render();
+}
+
+function clearAccusationSelection() {
+  accusationSelection.spy = null;
+  accusationSelection.city = null;
+}
+
 function openQuestionMenu(event, spyId) {
   event.preventDefault();
   const active = state.viewer === state.turn && state.phase === "action" && state.setupComplete && state.winner === null;
   const questions = state.questions.filter(question => question.spy === spyId);
-  if (!active || !questions.length) return;
+  if (!active) return;
   const buttons = questions.flatMap(question => {
     if (question.dual && !state.aiEnabled) {
       return [0, 1].map(index => `<button data-spy="${question.spy}" data-sense="${question.sense}" data-first="${index}">${question.sense} · direction ${index + 1}</button>`);
@@ -98,16 +125,17 @@ function openQuestionMenu(event, spyId) {
   }).join("");
   const menu = $("question-menu");
   const card = state.opponentCards.find(item => item.id === spyId);
-  menu.innerHTML = `<strong>Ask ${card.name}</strong>${buttons}`;
+  menu.innerHTML = `<strong>${card.name}</strong>${buttons}<button class="danger" data-accuse-spy="${spyId}">Accuse this spy</button>`;
   menu.hidden = false;
   menu.style.left = `${Math.min(event.clientX, window.innerWidth - 190)}px`;
   menu.style.top = `${Math.min(event.clientY, window.innerHeight - menu.offsetHeight - 8)}px`;
-  menu.querySelectorAll("button").forEach(button => {
+  menu.querySelectorAll("button[data-sense]").forEach(button => {
     button.onclick = () => {
       const question = state.questions.find(item => item.spy === Number(button.dataset.spy) && item.sense === button.dataset.sense);
       if (question) askQuestion(question, Number(button.dataset.first));
     };
   });
+  menu.querySelector("[data-accuse-spy]").onclick = () => selectAccusedSpy(spyId);
 }
 
 function clearSetupLayouts() {
@@ -136,13 +164,13 @@ function shuffleSetupLayout() {
 
 function renderPrivateBoard(me, ownByName) {
   if (!state.setupEnabled || state.setupReady[state.viewer]) {
-    $("board").innerHTML = me.board.map(cell => `<div class="cell"><strong>${cell.city}</strong>${cell.occupant === "HIDEOUT" ? cardHtml({hideout: true}) : cardHtml(ownByName[cell.occupant], {markKey: `own-${ownByName[cell.occupant].id}`})}</div>`).join("");
+    $("board").innerHTML = me.board.map(cell => `<div class="cell"><strong>${cell.city}</strong>${cell.occupant === "HIDEOUT" ? cardHtml({hideout: true}, {markKey: "own-hideout"}) : cardHtml(ownByName[cell.occupant], {markKey: `own-${ownByName[cell.occupant].id}`})}</div>`).join("");
     return;
   }
   const layout = setupLayout();
   $("board").innerHTML = me.board.map((cell, city) => {
     const occupant = layout[city];
-    const card = occupant === "HIDEOUT" ? cardHtml({hideout: true}) : cardHtml(ownByName[occupant], {markKey: `own-${ownByName[occupant].id}`});
+    const card = occupant === "HIDEOUT" ? cardHtml({hideout: true}, {markKey: "own-hideout"}) : cardHtml(ownByName[occupant], {markKey: `own-${ownByName[occupant].id}`});
     return `<div class="cell setup-cell" data-setup-city="${city}"><strong>${cell.city}</strong><div class="setup-card" draggable="true" data-setup-city="${city}">${card}</div></div>`;
   }).join("");
   document.querySelectorAll(".setup-card").forEach(card => {
@@ -235,12 +263,22 @@ function renderActions() {
     $("end").onclick = () => act({type: "end_turn"});
     return;
   }
-  const suspects = state.opponentCards.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
-  const cities = state.cities.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+  const selectedSpy = state.opponentCards.find(card => card.id === accusationSelection.spy);
+  const selectedCity = state.cities.find(city => city.id === accusationSelection.city);
+  const disabled = selectedSpy && selectedCity ? "" : "disabled";
   $("actions").innerHTML = `
-    <p>Right-click an opponent card to ask a question.</p>
-    <select id="suspect">${suspects}</select><select id="city">${cities}</select><button id="accuse">Accuse</button>`;
-  $("accuse").onclick = () => act({type: "accuse", ringleader: Number($("suspect").value), hideout: Number($("city").value)});
+    <p>Right-click an opponent card to ask, or choose that spy for an accusation.</p>
+    <p>Right-click a city name, or the hideout card while it sits on a city, to choose the hideout.</p>
+    <div class="accuse-selection">
+      <span>Spy: <strong>${selectedSpy ? selectedSpy.name : "none"}</strong></span>
+      <span>City: <strong>${selectedCity ? selectedCity.name : "none"}</strong></span>
+    </div>
+    <button id="accuse" ${disabled}>Accuse</button>`;
+  $("accuse").onclick = () => {
+    if (accusationSelection.spy !== null && accusationSelection.city !== null) {
+      act({type: "accuse", ringleader: accusationSelection.spy, hideout: accusationSelection.city});
+    }
+  };
 }
 
 function roundRevealHtml() {
@@ -340,15 +378,30 @@ function renderNotes() {
     ...state.opponentCards.map(c => ({...c, noteId: `spy-${c.id}`})),
     {noteId: "hideout", hideout: true}
   ];
-  $("notes-pool").innerHTML = `<div class="legend"><span class="sense look">L look</span><span class="sense hear">H hear</span><span class="sense point">P point</span></div>${items.filter(x => !notes[x.noteId]).map(item => cardHtml(item, {draggable: true, opponent: !item.hideout, markKey: item.hideout ? null : `opp-${item.id}`})).join("")}`;
+  const noteOptions = (item, location = undefined) => ({
+    draggable: true,
+    opponent: !item.hideout,
+    markKey: item.hideout ? "opp-hideout" : `opp-${item.id}`,
+    accuseCity: item.hideout && location !== undefined && !String(location).startsWith("component-") ? Number(location) : undefined,
+  });
+  $("notes-pool").innerHTML = `<div class="legend"><span class="sense look">L look</span><span class="sense hear">H hear</span><span class="sense point">P point</span></div>${items.filter(x => !notes[x.noteId]).map(item => cardHtml(item, noteOptions(item))).join("")}`;
   const landmarks = state.landmarks.map(item => `<div class="landmark landmark-${item.name.toLowerCase()}">${item.name}</div>`).join("");
-  const cities = state.cities.map(city => `<div class="cell dropzone" data-city="${city.id}"><strong>${city.name}</strong>${items.filter(x => notes[x.noteId] === String(city.id)).map(item => cardHtml(item, {draggable: true, opponent: !item.hideout, markKey: item.hideout ? null : `opp-${item.id}`})).join("")}</div>`).join("");
+  const cities = state.cities.map(city => {
+    const accusedLocation = accusationSelection.city === city.id ? "accused-location" : "";
+    return `<div class="cell dropzone" data-city="${city.id}"><strong class="accuse-city-target ${accusedLocation}" data-accuse-city="${city.id}">${city.name}</strong>${items.filter(x => notes[x.noteId] === String(city.id)).map(item => cardHtml(item, noteOptions(item, city.id))).join("")}</div>`;
+  }).join("");
   $("notes-grid").innerHTML = landmarks + cities;
   $("component-grid").innerHTML = Array.from({length: COMPONENT_COUNT}, (_, index) => {
     const location = `component-${index}`;
-    return `<div class="cell component-bin dropzone" data-location="${location}">${items.filter(x => notes[x.noteId] === location).map(item => cardHtml(item, {draggable: true, opponent: !item.hideout, markKey: item.hideout ? null : `opp-${item.id}`})).join("")}</div>`;
+    return `<div class="cell component-bin dropzone" data-location="${location}">${items.filter(x => notes[x.noteId] === location).map(item => cardHtml(item, noteOptions(item, location))).join("")}</div>`;
   }).join("");
   document.querySelectorAll("[data-opponent-spy]").forEach(card => card.addEventListener("contextmenu", event => openQuestionMenu(event, Number(card.dataset.opponentSpy))));
+  document.querySelectorAll("[data-accuse-city]").forEach(target => {
+    target.addEventListener("contextmenu", event => {
+      event.preventDefault();
+      selectAccusedCity(Number(target.dataset.accuseCity));
+    });
+  });
   document.querySelectorAll(".draggable").forEach(el => {
     el.addEventListener("dragstart", event => beginDrag(event, el.dataset.note, el));
     el.addEventListener("dragend", () => el.classList.remove("dragging"));
