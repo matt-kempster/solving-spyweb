@@ -142,6 +142,8 @@ belief, so its preferred directions adapt as the possible board shapes narrow.
 It also includes an experimental `hybrid` strategy that uses component scores
 to shortlist candidate questions, applies bounded minimax inside that shortlist,
 and switches to an exact solve-to-accusation search in small endgames.
+The deliberately simple `nonnull` baseline merely asks the unasked question
+most likely to produce anything other than Nothing.
 
 Use a representative development sample:
 

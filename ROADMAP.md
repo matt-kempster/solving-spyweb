@@ -46,6 +46,8 @@ UI backed by the same authoritative rules and AI modules.
   belief-conditioned non-Nothing directions.
 - [x] Add an experimental hybrid strategy that blends component-guided candidate
   ordering with bounded minimax and exact small-pair endgame search.
+- [x] Add a minimal high-probability non-Nothing strategy as a sanity-check
+  baseline for more sophisticated policies.
 - Continue optimizing exact-universe policy evaluation. Reusable policy
   decisions and faster partition scoring reduced a depth-1 exact campaign to
   roughly 45 seconds, but large exact matrices are not yet routine.

@@ -54,6 +54,7 @@ from spyweb.solver.hybrid_policy import (
     recommend_hybrid_questions,
 )
 from spyweb.solver.policy import recommend_questions
+from spyweb.solver.simple_policy import best_non_nothing_question
 from spyweb.solver.universe import Universe, build_universe, universe_board_count
 
 
@@ -62,6 +63,7 @@ class SearchPolicy(StrEnum):
     ADAPTIVE = "adaptive"
     COMPONENT = "component"
     HYBRID = "hybrid"
+    NONNULL = "nonnull"
 
 
 class SpendPolicy(StrEnum):
@@ -100,6 +102,9 @@ STRATEGIES: dict[str, Strategy] = {
         SetupPolicy.DEFENSIVE,
     ),
     "hybrid": Strategy("hybrid", SearchPolicy.HYBRID, SpendPolicy.TEMPO, SetupPolicy.DEFENSIVE),
+    "nonnull": Strategy(
+        "nonnull", SearchPolicy.NONNULL, SpendPolicy.TEMPO, SetupPolicy.DEFENSIVE
+    ),
 }
 
 
@@ -319,6 +324,16 @@ def _choose_action(
         )
         cache[key] = component_action
         return component_action
+    if strategy.search is SearchPolicy.NONNULL:
+        score = best_non_nothing_question(
+            ai.universe,
+            ai.encoding,
+            ai.belief,
+            knowledge.observations,
+        )
+        nonnull_action = ai.encoding.decode_question(score.question)
+        cache[key] = nonnull_action
+        return nonnull_action
     if strategy.search is SearchPolicy.HYBRID and len(candidates) <= EXACT_ENDGAME_MAX_PAIRS:
         exact = exact_endgame_action(ai.universe, ai.belief)
         if exact.accusation is not None:
@@ -720,7 +735,7 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--strategies",
-        default="frugal,current,tempo,component,hybrid",
+        default="frugal,current,tempo,component,hybrid,nonnull",
         help=f"comma-separated strategies: {','.join(STRATEGIES)}",
     )
     parser.add_argument("--json-out", type=Path)
