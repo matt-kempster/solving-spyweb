@@ -148,6 +148,14 @@ documented in [`docs/strategies/human-component.md`](docs/strategies/human-compo
 The `prior` strategy uses that human policy to contribute candidates to a
 diverse action shortlist at every recursive node, then lets bounded minimax
 choose among them.
+The experimental `race` strategy uses the adaptive question policy plus an ETA
+model for spending. It estimates each player's remaining question actions from
+their best current worst-case pair contraction and buys the once-per-turn extra
+action when taking initiative changes the projected round winner inside a
+near-terminal confidence window. It then compares the projected campaign-money
+outcomes using the board-weighted expected opposing ringleader bounty, the
+known bounty on its own board, and the $100k transfer to the opponent. Benchmark
+output reports extra-action purchases separately as `Extras B/S`.
 It also includes an experimental `hybrid` strategy that uses component scores
 to shortlist candidate questions, applies bounded minimax inside that shortlist,
 and switches to an exact solve-to-accusation search in small endgames.

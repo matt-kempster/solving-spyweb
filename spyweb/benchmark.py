@@ -48,6 +48,13 @@ from spyweb.solver.belief import (
 )
 from spyweb.solver.component_policy import rank_component_questions
 from spyweb.solver.encoding import Encoding
+from spyweb.solver.eta import (
+    SolveEta,
+    estimate_solve_eta,
+    expected_ringleader_bounty,
+    extra_action_changes_race_winner,
+    extra_action_improves_campaign_outcome,
+)
 from spyweb.solver.human_policy import rank_human_questions
 from spyweb.solver.hybrid_policy import (
     EXACT_ENDGAME_MAX_PAIRS,
@@ -73,6 +80,7 @@ class SearchPolicy(StrEnum):
 class SpendPolicy(StrEnum):
     NEVER = "never"
     TEMPO = "tempo"
+    RACE = "race"
 
 
 class SetupPolicy(StrEnum):
@@ -99,6 +107,7 @@ STRATEGIES: dict[str, Strategy] = {
         "current", SearchPolicy.ADAPTIVE, SpendPolicy.NEVER, SetupPolicy.DEFENSIVE
     ),
     "tempo": Strategy("tempo", SearchPolicy.ADAPTIVE, SpendPolicy.TEMPO, SetupPolicy.DEFENSIVE),
+    "race": Strategy("race", SearchPolicy.ADAPTIVE, SpendPolicy.RACE, SetupPolicy.DEFENSIVE),
     "component": Strategy(
         "component",
         SearchPolicy.COMPONENT,
@@ -150,6 +159,8 @@ class Aggregate:
     sea_wrong_accusations: int = 0
     bird_spend_actions: int = 0
     sea_spend_actions: int = 0
+    bird_extra_actions: int = 0
+    sea_extra_actions: int = 0
 
     def add(self, metrics: CampaignMetrics) -> None:
         self.campaigns += 1
@@ -164,6 +175,8 @@ class Aggregate:
         self.sea_wrong_accusations += metrics.wrong_accusations[1]
         self.bird_spend_actions += metrics.second_answers[0] + metrics.extra_actions[0]
         self.sea_spend_actions += metrics.second_answers[1] + metrics.extra_actions[1]
+        self.bird_extra_actions += metrics.extra_actions[0]
+        self.sea_extra_actions += metrics.extra_actions[1]
 
     @property
     def bird_win_rate(self) -> float:
@@ -224,6 +237,8 @@ class BenchmarkAssets:
 type Observation = tuple[int, ...]
 type PolicyKey = tuple[Faction, SearchPolicy, int, int, tuple[Observation, ...]]
 type PolicyCache = dict[PolicyKey, PairCandidate | Question]
+type EtaKey = tuple[Faction, int, tuple[Observation, ...]]
+type EtaCache = dict[EtaKey, SolveEta]
 
 
 @dataclass(frozen=True)
@@ -264,6 +279,45 @@ class TrackedKnowledge:
                 (2, int(event.ringleader), int(event.hideout), int(event.correct)),
             ),
         )
+
+
+def _estimate_eta(knowledge: TrackedKnowledge, cache: EtaCache) -> SolveEta:
+    key = (
+        knowledge.ai.encoding.rules.spies[0].faction,
+        knowledge.cache_scope,
+        knowledge.observations,
+    )
+    cached = cache.get(key)
+    if cached is not None:
+        return cached
+    eta = estimate_solve_eta(knowledge.ai.universe, knowledge.ai.belief)
+    cache[key] = eta
+    return eta
+
+
+def _should_buy_race_extra(
+    state: GameState,
+    knowledge: list[TrackedKnowledge],
+    eta_cache: EtaCache,
+) -> bool:
+    if state.extra_action_bought or state.actor.money < ACTION_COST:
+        return False
+    actor = state.turn
+    changes_winner = extra_action_changes_race_winner(
+        _estimate_eta(knowledge[actor], eta_cache), _estimate_eta(knowledge[1 - actor], eta_cache)
+    )
+    if not changes_winner:
+        return False
+    return extra_action_improves_campaign_outcome(
+        actor_money=state.actor.money,
+        opponent_money=state.opponent.money,
+        actor_win_bounty=expected_ringleader_bounty(
+            knowledge[actor].ai.universe,
+            knowledge[actor].ai.belief,
+            state.opponent.rules,
+        ),
+        opponent_win_bounty=state.actor.rules.spies[int(state.actor.board.ringleader)].bounty,
+    )
 
 
 def _layout_score(universe: Universe, encoding: Encoding, board_id: int) -> tuple[int, int]:
@@ -509,6 +563,7 @@ def simulate_campaign(
     random = Random(seed)
     strategies = (matchup.bird, matchup.sea)
     cache: PolicyCache = {} if policy_cache is None else policy_cache
+    eta_cache: EtaCache = {}
     state, board_ids = _new_round(
         assets, strategies, random, (100_000, 100_000), starting_player
     )
@@ -569,7 +624,7 @@ def simulate_campaign(
                 event = state.history[-1]
                 assert pending is not None and isinstance(event, AskedQuestion)
                 buy = (
-                    strategy.spend is SpendPolicy.TEMPO
+                    strategy.spend in (SpendPolicy.TEMPO, SpendPolicy.RACE)
                     and state.actor.money >= ACTION_COST
                     and _should_buy_second(knowledge[actor].ai, pending.question, event.answer)
                 )
@@ -592,6 +647,8 @@ def simulate_campaign(
                 and not state.extra_action_bought
                 and state.actor.money >= ACTION_COST
             )
+            if strategy.spend is SpendPolicy.RACE:
+                buy_extra = _should_buy_race_extra(state, knowledge, eta_cache)
             if buy_extra and state.winner is None:
                 state = buy_extra_action(state)
                 extra_actions[actor] += 1
@@ -702,14 +759,19 @@ def load_assets(cache_dir: Path, boards: int, *, use_cache: bool = True) -> Benc
 
 
 def _print_results(results: Sequence[Aggregate]) -> None:
-    print("\nBird strategy      Sea strategy       Bird wins (95% CI)  Avg rounds  Actions B/S")
+    print(
+        "\nBird strategy      Sea strategy       Bird wins (95% CI)  "
+        "Avg rounds  Actions B/S  Extras B/S"
+    )
     for result in results:
         print(
             f"{result.bird_strategy:<18} {result.sea_strategy:<18} "
             f"{result.bird_win_rate:>6.1%} +/- {result.bird_win_ci95:>5.1%}   "
             f"{result.rounds / result.campaigns:>8.2f}   "
             f"{result.bird_actions / result.campaigns:>6.1f}/"
-            f"{result.sea_actions / result.campaigns:<6.1f}"
+            f"{result.sea_actions / result.campaigns:<6.1f} "
+            f"{result.bird_extra_actions / result.campaigns:>5.1f}/"
+            f"{result.sea_extra_actions / result.campaigns:<5.1f}"
         )
     wins = sum(result.bird_wins for result in results)
     campaigns = sum(result.campaigns for result in results)
