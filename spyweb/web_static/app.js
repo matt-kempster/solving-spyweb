@@ -32,6 +32,7 @@ async function loadArtManifest() {
 }
 
 async function act(payload) {
+  const resetsSetup = payload.type === "choose_faction" || payload.type === "new_game";
   if (payload.type === "choose_faction" || payload.type === "new_game") {
     $("error").textContent = `Starting a new ${payload.faction || state.players[state.humanPlayer].faction} game…`;
   } else {
@@ -44,6 +45,7 @@ async function act(payload) {
   const result = await response.json();
   if (!response.ok) { $("error").textContent = result.error; return; }
   state = result;
+  if (resetsSetup) clearSetupLayouts();
   $("error").textContent = "";
   render();
 }
@@ -104,7 +106,15 @@ function openQuestionMenu(event, spyId) {
   });
 }
 
-function setupKey() { return `${state.round}-${state.viewer}`; }
+function clearSetupLayouts() {
+  for (const key of Object.keys(setupLayouts)) delete setupLayouts[key];
+}
+
+function setupKey() {
+  const me = state.players[state.viewer];
+  const generatedLayout = me.board.map(cell => cell.occupant).join(",");
+  return `${state.round}-${state.viewer}-${me.faction}-${me.ringleader}-${generatedLayout}`;
+}
 
 function setupLayout() {
   const key = setupKey();
