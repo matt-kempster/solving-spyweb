@@ -1,4 +1,4 @@
-:root { --card-width: 127px; --drop-cell-height: 134px; --grid-gap: .4rem; color-scheme: dark; font-family: system-ui, sans-serif; background: #111821; color: #eaf0f6; }
+:root { --card-width: 127px; --drop-cell-height: 134px; --grid-gap: .4rem; --board-width: calc(var(--card-width) + var(--card-width) + var(--card-width) + var(--grid-gap) + var(--grid-gap)); --notes-pool-width: calc(var(--card-width) + var(--card-width) + var(--grid-gap) + .9rem + 2px); --notes-gap: 2.5rem; --opponent-width: calc(var(--board-width) + var(--notes-gap) + var(--notes-pool-width)); color-scheme: dark; font-family: system-ui, sans-serif; background: #111821; color: #eaf0f6; }
 :root[data-theme="light"] { color-scheme: light; background: #edf3f8; color: #182534; }
 body { margin: 0; }
 header { display: flex; gap: 1.5rem; align-items: center; padding: .8rem 1.2rem; background: #182534; border-bottom: 1px solid #38506a; }
@@ -6,9 +6,11 @@ h1, h2 { margin: .5rem 0; }
 h1 { font-size: 1.4rem; }
 h2 { font-size: 1.05rem; margin-top: 1.3rem; }
 h4 { margin: .7rem 0 .25rem; font-size: .9rem; color: #ffd47c; }
-main { display: grid; grid-template-columns: minmax(260px, 320px) max-content max-content; justify-content: center; gap: 2.5rem; padding: 1rem 1.5rem; }
+main { display: grid; grid-template-columns: 320px var(--opponent-width) var(--board-width); justify-content: center; gap: 2.5rem; padding: 1rem 1.5rem; }
 section { min-width: 0; }
-.opponent-column, .player-column { width: max-content; }
+.analysis-column { width: 320px; }
+.opponent-column { width: var(--opponent-width); }
+.player-column { width: var(--board-width); }
 .analysis-column h2:first-child,
 .opponent-column h2:first-child,
 .player-column h2:first-child { margin-top: .5rem; }
@@ -18,7 +20,7 @@ section { min-width: 0; }
 .cell, .dropzone { box-sizing: border-box; min-height: 92px; border: 1px solid #38506a; border-radius: 6px; padding: .45rem; background: #182534; }
 .cell strong { display: block; color: #8fc7ff; font-size: .8rem; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, var(--card-width)); justify-content: start; gap: var(--grid-gap); }
-.notes-workspace { display: grid; grid-template-columns: max-content max-content; align-items: start; gap: 2.5rem; }
+.notes-workspace { display: grid; grid-template-columns: var(--board-width) var(--notes-pool-width); align-items: start; gap: var(--notes-gap); }
 .notes-tray { min-width: 0; }
 .scratch-grid { position: relative; display: grid; grid-template-columns: repeat(3, var(--card-width)); grid-template-rows: repeat(3, var(--drop-cell-height)); gap: var(--grid-gap); margin-top: 1.4rem; }
 .scratch-grid .cell { box-sizing: border-box; height: var(--drop-cell-height); min-width: 0; overflow: hidden; }
@@ -27,7 +29,7 @@ section { min-width: 0; }
 .landmark-plane { top: 0; right: calc(var(--card-width) / 2); transform: translate(50%, -65%); }
 .landmark-boat { right: 0; bottom: calc(var(--drop-cell-height) / 2); transform: translate(55%, 50%); }
 .component-grid { display: grid; grid-template-columns: repeat(3, var(--card-width)); gap: var(--grid-gap); margin-top: .7rem; }
-#notes-pool { grid-template-columns: repeat(2, var(--card-width)); width: calc(var(--card-width) + var(--card-width) + var(--grid-gap) + .9rem + 2px); min-height: var(--drop-cell-height); }
+#notes-pool { grid-template-columns: repeat(2, var(--card-width)); width: var(--notes-pool-width); min-height: var(--drop-cell-height); }
 .notes-tray button { margin-top: .7rem; }
 .component-bin { box-sizing: border-box; height: var(--drop-cell-height); min-height: 0; overflow: hidden; border-style: dashed; }
 .spy-card { position: relative; box-sizing: border-box; width: min(var(--card-width), 100%); min-height: 0; aspect-ratio: 204 / 200; margin-left: auto; margin-right: auto; border: 1px solid #587898; border-radius: 5px; padding: 1.4rem .5rem; background: #203248; text-align: center; }
@@ -47,6 +49,7 @@ section { min-width: 0; }
 .accuse-city-target.accused-location { border-radius: 3px; outline: 2px solid #ff4f58; outline-offset: 2px; color: #ff8d93; }
 .accuse-selection { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin: .35rem .2rem; }
 .accuse-selection strong { color: #ff8d93; }
+#actions { box-sizing: border-box; width: var(--board-width); min-height: 9.5rem; overflow-wrap: anywhere; }
 .edge { position: absolute; display: flex; gap: .15rem; font: bold .68rem ui-monospace, monospace; }
 .edge.n { top: .1rem; left: 50%; transform: translateX(-50%); }
 .edge.ne { top: .1rem; right: .2rem; }
@@ -104,7 +107,8 @@ ol, ul { padding-left: 1.3rem; }
 :root[data-theme="light"] .setup-cell.drag-over { background: #e9f2fa; }
 @media (max-width: 1200px) {
   main { grid-template-columns: 1fr; }
-  .opponent-column, .player-column { width: auto; }
+  .analysis-column, .opponent-column, .player-column { width: auto; }
   .notes-workspace { grid-template-columns: 1fr; }
   #notes-pool { grid-template-columns: repeat(auto-fill, var(--card-width)); width: auto; }
+  #actions { width: auto; }
 }
