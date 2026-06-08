@@ -53,6 +53,7 @@ from spyweb.solver.hybrid_policy import (
     EXACT_ENDGAME_MAX_PAIRS,
     exact_endgame_action,
     recommend_hybrid_questions,
+    recommend_prior_questions,
 )
 from spyweb.solver.policy import recommend_questions
 from spyweb.solver.simple_policy import best_non_nothing_question
@@ -65,6 +66,7 @@ class SearchPolicy(StrEnum):
     COMPONENT = "component"
     HUMAN = "human"
     HYBRID = "hybrid"
+    PRIOR = "prior"
     NONNULL = "nonnull"
 
 
@@ -105,6 +107,7 @@ STRATEGIES: dict[str, Strategy] = {
     ),
     "human": Strategy("human", SearchPolicy.HUMAN, SpendPolicy.TEMPO, SetupPolicy.DEFENSIVE),
     "hybrid": Strategy("hybrid", SearchPolicy.HYBRID, SpendPolicy.TEMPO, SetupPolicy.DEFENSIVE),
+    "prior": Strategy("prior", SearchPolicy.PRIOR, SpendPolicy.TEMPO, SetupPolicy.DEFENSIVE),
     "nonnull": Strategy(
         "nonnull", SearchPolicy.NONNULL, SpendPolicy.TEMPO, SetupPolicy.DEFENSIVE
     ),
@@ -349,7 +352,9 @@ def _choose_action(
         nonnull_action = ai.encoding.decode_question(score.question)
         cache[key] = nonnull_action
         return nonnull_action
-    if strategy.search is SearchPolicy.HYBRID and len(candidates) <= EXACT_ENDGAME_MAX_PAIRS:
+    if strategy.search in (SearchPolicy.HYBRID, SearchPolicy.PRIOR) and len(
+        candidates
+    ) <= EXACT_ENDGAME_MAX_PAIRS:
         exact = exact_endgame_action(ai.universe, ai.belief)
         if exact.accusation is not None:
             cache[key] = exact.accusation
@@ -361,11 +366,22 @@ def _choose_action(
         return exact_question
     depth = (
         ai_search_depth(int(ai.belief.size))
-        if strategy.search in (SearchPolicy.ADAPTIVE, SearchPolicy.HYBRID)
+        if strategy.search in (SearchPolicy.ADAPTIVE, SearchPolicy.HYBRID, SearchPolicy.PRIOR)
         else 1
     )
     depth = min(depth, strategy.max_depth)
     recommendation = (
+        recommend_prior_questions(
+            ai.universe,
+            ai.encoding,
+            ai.belief,
+            knowledge.observations,
+            depth=depth,
+            max_lookahead_boards=int(ai.belief.size),
+            branching_limit=5,
+        )
+        if strategy.search is SearchPolicy.PRIOR
+        else
         recommend_hybrid_questions(
             ai.universe,
             ai.encoding,
@@ -750,7 +766,7 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--strategies",
-        default="frugal,current,tempo,component,human,hybrid,nonnull",
+        default="frugal,current,tempo,component,human,hybrid,prior,nonnull",
         help=f"comma-separated strategies: {','.join(STRATEGIES)}",
     )
     parser.add_argument("--json-out", type=Path)

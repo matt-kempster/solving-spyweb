@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from spyweb.solver.belief import (
@@ -10,6 +11,10 @@ from spyweb.solver.belief import (
     rank_questions,
 )
 from spyweb.solver.universe import Universe
+
+type Observation = tuple[int, ...]
+type Observations = tuple[Observation, ...]
+type QuestionPrior = Callable[[Belief, Observations], tuple[QuestionScore, ...]]
 
 
 @dataclass(frozen=True)
@@ -34,20 +39,37 @@ def _best_leaf_value(
     universe: Universe,
     belief: Belief,
     depth: int,
-    cache: dict[tuple[int, bytes], tuple[int, int]],
+    cache: dict[tuple[int, bytes, Observations], tuple[int, int]],
     branching_limit: int | None,
+    question_prior: QuestionPrior | None,
+    observations: Observations,
 ) -> tuple[int, int]:
     current = (pair_count(universe, belief), int(belief.size))
     if depth == 0 or current[0] <= 1:
         return current
-    key = (depth, belief.tobytes())
+    key = (depth, belief.tobytes(), observations if question_prior is not None else ())
     cached = cache.get(key)
     if cached is not None:
         return cached
     best = min(
         (
-            _question_leaf_value(universe, belief, score, depth, cache, branching_limit)
-            for score in _limited_questions(universe, belief, branching_limit)
+            _question_leaf_value(
+                universe,
+                belief,
+                score,
+                depth,
+                cache,
+                branching_limit,
+                question_prior,
+                observations,
+            )
+            for score in _limited_questions(
+                universe,
+                belief,
+                branching_limit,
+                question_prior,
+                observations,
+            )
         ),
         default=current,
     )
@@ -60,25 +82,47 @@ def _question_leaf_value(
     belief: Belief,
     immediate: QuestionScore,
     depth: int,
-    cache: dict[tuple[int, bytes], tuple[int, int]],
+    cache: dict[tuple[int, bytes, Observations], tuple[int, int]],
     branching_limit: int | None,
+    question_prior: QuestionPrior | None,
+    observations: Observations,
 ) -> tuple[int, int]:
     worst = (0, 0)
     for partition in immediate.partitions:
         bucket = filter_first_answer(universe, belief, immediate.question, partition.answer)
+        child_observations = (
+            *observations,
+            (0, int(immediate.question), int(partition.answer)),
+        )
         child = (
             (partition.pairs, partition.boards)
             if bucket.size == belief.size
-            else _best_leaf_value(universe, bucket, depth - 1, cache, branching_limit)
+            else _best_leaf_value(
+                universe,
+                bucket,
+                depth - 1,
+                cache,
+                branching_limit,
+                question_prior,
+                child_observations,
+            )
         )
         worst = max(worst, child)
     return worst
 
 
 def _limited_questions(
-    universe: Universe, belief: Belief, branching_limit: int | None
+    universe: Universe,
+    belief: Belief,
+    branching_limit: int | None,
+    question_prior: QuestionPrior | None,
+    observations: Observations,
 ) -> tuple[QuestionScore, ...]:
-    ranked = rank_questions(universe, belief)
+    ranked = (
+        rank_questions(universe, belief)
+        if question_prior is None
+        else question_prior(belief, observations)
+    )
     return ranked if branching_limit is None else ranked[:branching_limit]
 
 
@@ -90,6 +134,8 @@ def recommend_questions(
     max_lookahead_boards: int = 10_000,
     branching_limit: int | None = None,
     root_questions: tuple[QuestionScore, ...] | None = None,
+    question_prior: QuestionPrior | None = None,
+    observations: Observations = (),
 ) -> Recommendation:
     if depth < 1:
         raise ValueError("Policy depth must be at least 1")
@@ -106,7 +152,7 @@ def recommend_questions(
                 for score in ranked
             ),
         )
-    cache: dict[tuple[int, bytes], tuple[int, int]] = {}
+    cache: dict[tuple[int, bytes, Observations], tuple[int, int]] = {}
     scores = tuple(
         sorted(
             (
@@ -119,6 +165,8 @@ def recommend_questions(
                         effective_depth,
                         cache,
                         branching_limit,
+                        question_prior,
+                        observations,
                     ),
                 )
                 for immediate in ranked

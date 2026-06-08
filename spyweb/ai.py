@@ -30,6 +30,7 @@ from spyweb.solver.belief import (
 from spyweb.solver.component_policy import Observation, rank_component_questions
 from spyweb.solver.encoding import Encoding
 from spyweb.solver.human_policy import rank_human_questions
+from spyweb.solver.hybrid_policy import recommend_prior_questions
 from spyweb.solver.policy import recommend_questions
 from spyweb.solver.universe import Universe, build_universe, universe_board_count
 
@@ -44,6 +45,7 @@ class AiStrategy(StrEnum):
     MINIMAX = "minimax"
     COMPONENT = "component"
     HUMAN = "human"
+    PRIOR = "prior"
 
 
 @dataclass(frozen=True)
@@ -181,6 +183,18 @@ def recommended_action(
             observations,
         )[0]
         return knowledge.encoding.decode_question(human_score.immediate.question)
+    if strategy is AiStrategy.PRIOR:
+        depth = ai_search_depth(int(knowledge.belief.size))
+        recommendation = recommend_prior_questions(
+            knowledge.universe,
+            knowledge.encoding,
+            knowledge.belief,
+            observations,
+            depth=depth,
+            max_lookahead_boards=int(knowledge.belief.size),
+            branching_limit=AI_MINIMAX_BRANCHING,
+        )
+        return knowledge.encoding.decode_question(recommendation.best.immediate.question)
 
     depth = ai_search_depth(int(knowledge.belief.size))
     minimax_recommendation = recommend_questions(

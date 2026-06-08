@@ -13,10 +13,13 @@ from spyweb.solver.belief import (
 )
 from spyweb.solver.component_policy import Observation, rank_component_questions
 from spyweb.solver.encoding import Encoding
+from spyweb.solver.human_policy import rank_human_questions
 from spyweb.solver.policy import Recommendation, recommend_questions
 from spyweb.solver.universe import Universe
 
 HYBRID_COMPONENT_SHORTLIST = 8
+PRIOR_MINIMAX_QUESTIONS = 3
+PRIOR_HUMAN_QUESTIONS = 5
 EXACT_ENDGAME_MAX_PAIRS = 5
 
 
@@ -92,4 +95,48 @@ def recommend_hybrid_questions(
         max_lookahead_boards=max_lookahead_boards,
         branching_limit=branching_limit,
         root_questions=shortlist,
+    )
+
+
+def recommend_prior_questions(
+    universe: Universe,
+    encoding: Encoding,
+    belief: Belief,
+    observations: tuple[Observation, ...],
+    *,
+    depth: int,
+    max_lookahead_boards: int,
+    branching_limit: int,
+) -> Recommendation:
+    def prior(
+        branch_belief: Belief,
+        branch_observations: tuple[Observation, ...],
+    ) -> tuple[QuestionScore, ...]:
+        immediate = rank_questions(universe, branch_belief)
+        human = rank_human_questions(
+            universe,
+            encoding,
+            branch_belief,
+            branch_observations,
+        )
+        selected: dict[int, QuestionScore] = {}
+        for score in immediate[:PRIOR_MINIMAX_QUESTIONS]:
+            selected[int(score.question)] = score
+        for human_score in human[:PRIOR_HUMAN_QUESTIONS]:
+            selected.setdefault(
+                int(human_score.immediate.question),
+                human_score.immediate,
+            )
+        return tuple(selected.values())
+
+    shortlist = prior(belief, observations)
+    return recommend_questions(
+        universe,
+        belief,
+        depth=depth,
+        max_lookahead_boards=max_lookahead_boards,
+        branching_limit=branching_limit,
+        root_questions=shortlist,
+        question_prior=prior,
+        observations=observations,
     )

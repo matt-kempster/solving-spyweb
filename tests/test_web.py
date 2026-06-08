@@ -143,6 +143,21 @@ def test_web_ai_can_switch_to_human_strategy() -> None:
     assert session.project(0)["aiStrategy"] == "human"
 
 
+def test_web_ai_can_switch_to_prior_strategy() -> None:
+    encoding = Encoding(BIRD_RULES)
+    universe = build_universe(BIRD_RULES, encoding, limit=2_000)
+    knowledge = AiKnowledge(universe, encoding, full_belief(universe))
+    session = WebSession(
+        new_campaign("Bird", BIRD_RULES, "Sea AI", SEA_RULES, seed=4),
+        ai_knowledge=knowledge,
+    )
+
+    session.apply({"type": "set_ai_strategy", "player": 0, "strategy": "prior"})
+
+    assert session.ai_strategy is AiStrategy.PRIOR
+    assert session.project(0)["aiStrategy"] == "prior"
+
+
 def test_ai_projection_rejects_ai_private_view() -> None:
     encoding = Encoding(BIRD_RULES)
     universe = build_universe(BIRD_RULES, encoding, limit=100)

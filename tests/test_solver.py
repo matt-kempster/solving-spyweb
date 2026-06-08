@@ -14,7 +14,11 @@ from spyweb.solver.belief import (
     rank_questions,
 )
 from spyweb.solver.encoding import Encoding
-from spyweb.solver.hybrid_policy import exact_endgame_action, recommend_hybrid_questions
+from spyweb.solver.hybrid_policy import (
+    exact_endgame_action,
+    recommend_hybrid_questions,
+    recommend_prior_questions,
+)
 from spyweb.solver.policy import recommend_questions
 from spyweb.solver.replay import ReplayState, apply_event
 from spyweb.solver.universe import Universe, build_universe
@@ -126,3 +130,22 @@ def test_hybrid_policy_uses_component_shortlist_and_exact_endgame() -> None:
 
     assert exact.actions <= 3
     assert (exact.question is None) != (exact.accusation is None)
+
+
+def test_prior_policy_searches_a_bounded_diverse_shortlist() -> None:
+    encoding = Encoding(FIXTURE_RULES)
+    universe = build_universe(FIXTURE_RULES, encoding, 500)
+    belief = full_belief(universe)
+
+    prior = recommend_prior_questions(
+        universe,
+        encoding,
+        belief,
+        (),
+        depth=2,
+        max_lookahead_boards=500,
+        branching_limit=8,
+    )
+
+    assert prior.effective_depth == 2
+    assert 3 <= len(prior.scores) <= 8

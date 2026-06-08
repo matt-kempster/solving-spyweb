@@ -110,7 +110,8 @@ accusation guarantees a campaign-critical outcome.
 
 When playing against the AI in the web UI, use the header's **AI strategy**
 selector to switch between the bounded minimax policy, the original
-component-building policy, and a human-style component policy.
+component-building policy, a human-style component policy, and human-prior
+minimax.
 
 Run a repeatable AI-vs-AI strategy and faction benchmark:
 
@@ -144,6 +145,9 @@ state machine: it starts with spies that have several useful directions, moves
 away from early Nothing answers, expands its best known component, and switches
 to ruling out ringleaders once the hideout is fixed. Its behavioral contract is
 documented in [`docs/strategies/human-component.md`](docs/strategies/human-component.md).
+The `prior` strategy uses that human policy to contribute candidates to a
+diverse action shortlist at every recursive node, then lets bounded minimax
+choose among them.
 It also includes an experimental `hybrid` strategy that uses component scores
 to shortlist candidate questions, applies bounded minimax inside that shortlist,
 and switches to an exact solve-to-accusation search in small endgames.
