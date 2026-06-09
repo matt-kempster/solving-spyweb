@@ -22,7 +22,7 @@ UI backed by the same authoritative rules and AI modules.
   replacing the opponent notes view without clearing it.
 - Fix the web UI bug where reaching $1,000,000 does not immediately end the
   campaign.
-- Clear notes automatically when starting a new round.
+- [x] Clear notes and translucency automatically when starting a new round.
 
 ## Deduction UI
 
@@ -35,7 +35,7 @@ UI backed by the same authoritative rules and AI modules.
 - Visualize belief-derived components and possible ringleaders/hideouts.
 - Keep AI knowledge hidden by default so the player cannot bias decisions based
   on how close the AI is. The web UI now has an explicit show/hide control.
-- Clear translucency state when clearing notes.
+- Clear translucency state when manually clearing notes.
 - Improve the scratch notes area layout and usability.
 
 ## Stronger AI

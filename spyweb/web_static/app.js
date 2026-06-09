@@ -37,7 +37,6 @@ async function loadArtManifest() {
 async function act(payload) {
   const resetsSetup = payload.type === "choose_faction" || payload.type === "new_game";
   if (["choose_faction", "new_game", "next_round"].includes(payload.type)) showingRevealedBoard = false;
-  if (payload.type === "new_game") clearLocalAnnotations();
   if (payload.type === "choose_faction" || payload.type === "new_game") {
     $("error").textContent = `Starting a new ${payload.faction || state.players[state.humanPlayer].faction} game…`;
   } else {
@@ -50,6 +49,7 @@ async function act(payload) {
   const result = await response.json();
   if (!response.ok) { $("error").textContent = result.error; return; }
   state = result;
+  if (["new_game", "next_round"].includes(payload.type)) clearLocalAnnotations();
   if (["choose_faction", "new_game", "next_round", "accuse"].includes(payload.type)) clearAccusationSelection();
   if (resetsSetup) clearSetupLayouts();
   $("error").textContent = "";
