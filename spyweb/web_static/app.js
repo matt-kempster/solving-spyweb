@@ -471,7 +471,7 @@ $("toggle-board-reveal").addEventListener("click", () => {
   showingRevealedBoard = !showingRevealedBoard;
   renderNotes();
 });
-$("clear-notes").addEventListener("click", () => { localStorage.removeItem(notesKey()); renderNotes(); });
+$("clear-notes").addEventListener("click", () => { clearLocalAnnotations(); renderNotes(); });
 document.addEventListener("click", event => {
   if (!$("question-menu").contains(event.target)) closeQuestionMenu();
 });

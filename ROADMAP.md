@@ -20,7 +20,7 @@ UI backed by the same authoritative rules and AI modules.
 
 - [x] Add a reversible whole-board reveal at the end of a round in the web UI,
   replacing the opponent notes view without clearing it.
-- Fix the web UI bug where reaching $1,000,000 does not immediately end the
+- [x] Fix the web UI bug where reaching $1,000,000 does not immediately end the
   campaign.
 - [x] Clear notes and translucency automatically when starting a new round.
 
@@ -30,12 +30,14 @@ UI backed by the same authoritative rules and AI modules.
   known but whose absolute board position is not. Browser-only bins are
   implemented; future work should support moving a whole component and drawing
   explicit relative-position edges.
+- Add half-cell-lattice scratch placement so cards can snap to cell centers,
+  shared edges, and vertices to represent here-or-there uncertainty.
 - [x] Visualize event-derived relative-position edges, landmark anchors,
   nothing answers, and which senses each player has or has not asked about.
 - Visualize belief-derived components and possible ringleaders/hideouts.
 - Keep AI knowledge hidden by default so the player cannot bias decisions based
   on how close the AI is. The web UI now has an explicit show/hide control.
-- Clear translucency state when manually clearing notes.
+- [x] Clear translucency state when manually clearing notes.
 - Improve the scratch notes area layout and usability.
 
 ## Stronger AI

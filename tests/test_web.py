@@ -1,8 +1,17 @@
+from dataclasses import replace
+
 import numpy as np
 
 from spyweb.ai import AiKnowledge, AiStrategy
 from spyweb.core.catalog import BIRD_RULES, SEA_RULES
-from spyweb.core.game import TurnPhase, accuse, ask_question, legal_questions, new_campaign
+from spyweb.core.game import (
+    CAMPAIGN_TARGET,
+    TurnPhase,
+    accuse,
+    ask_question,
+    legal_questions,
+    new_campaign,
+)
 from spyweb.core.model import SpyAnswer
 from spyweb.core.rules import answer_question, validate_board
 from spyweb.solver.belief import full_belief
@@ -122,6 +131,28 @@ def test_web_session_applies_question_and_turn_actions() -> None:
 
     session.apply({"type": "end_turn", "player": 0})
     assert session.campaign.round.turn == 1
+
+
+def test_web_session_ends_campaign_immediately_after_winning_accusation() -> None:
+    campaign = new_campaign("Bird", BIRD_RULES, "Sea", SEA_RULES, seed=4)
+    target = campaign.round.players[1].board
+    bounty = campaign.round.players[1].rules.spies[int(target.ringleader)].bounty
+    players = list(campaign.round.players)
+    players[0] = replace(players[0], money=CAMPAIGN_TARGET - bounty)
+    campaign = replace(campaign, round=replace(campaign.round, players=(players[0], players[1])))
+    session = WebSession(campaign)
+
+    session.apply(
+        {
+            "type": "accuse",
+            "player": 0,
+            "ringleader": int(target.ringleader),
+            "hideout": int(target.hideout),
+        }
+    )
+
+    assert session.campaign.winner == 0
+    assert session.project(0)["campaignWinner"] == 0
 
 
 def test_web_ai_advances_until_human_input_or_turn() -> None:

@@ -42,6 +42,7 @@ from spyweb.core.game import (
     ask_question,
     buy_extra_action,
     buy_second_answer,
+    campaign_winner,
     decline_second_answer,
     end_turn,
     legal_questions,
@@ -405,6 +406,10 @@ class WebSession:
             setup_ready=frozenset(self.setup_ready),
         )
 
+    def update_round(self, state: GameState) -> None:
+        winner = campaign_winner(state) if state.winner is not None else self.campaign.winner
+        self.campaign = CampaignState(state, self.campaign.round_number, winner)
+
     def prepare_setup(self) -> None:
         if not self.setup_enabled:
             return
@@ -482,7 +487,7 @@ class WebSession:
             )
         else:
             raise ValueError(f"Unknown action: {kind}")
-        self.campaign = CampaignState(state, self.campaign.round_number, self.campaign.winner)
+        self.update_round(state)
         self.advance_ai()
 
     def _set_layout(self, player: int, action: dict[str, JsonValue]) -> None:
@@ -541,7 +546,7 @@ class WebSession:
         code = self.ai_knowledge.encoding.answer_code(first)
         self.ai_observations = (*self.ai_observations, (0, int(qid), int(code)))
         self.ai_pending_question = None
-        self.campaign = CampaignState(state, self.campaign.round_number, self.campaign.winner)
+        self.update_round(state)
 
     def advance_ai(self) -> None:
         while self.ai_knowledge is not None:
@@ -631,7 +636,7 @@ class WebSession:
                 state = buy_extra_action(state)
             else:
                 state = end_turn(state)
-            self.campaign = CampaignState(state, self.campaign.round_number, self.campaign.winner)
+            self.update_round(state)
 
 
 def _string(record: dict[str, JsonValue], key: str) -> str:
