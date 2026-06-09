@@ -448,11 +448,12 @@ function renderNotes() {
     const accusedLocation = accusationSelection.city === city.id ? "accused-location" : "";
     return `<div class="cell dropzone" data-city="${city.id}"><strong class="accuse-city-target ${accusedLocation}" data-accuse-city="${city.id}">${city.name}</strong>${items.filter(x => notes[x.noteId] === String(city.id)).map(item => cardHtml(item, noteOptions(item, city.id))).join("")}</div>`;
   }).join("");
-  $("notes-grid").innerHTML = landmarks + cities + latticeZones(items, notes, noteOptions);
-  $("component-grid").innerHTML = Array.from({length: COMPONENT_COUNT}, (_, index) => {
+  $("notes-grid").innerHTML = landmarks + cities;
+  const componentCells = Array.from({length: COMPONENT_COUNT}, (_, index) => {
     const location = `component-${index}`;
     return `<div class="cell component-bin dropzone" data-location="${location}">${items.filter(x => notes[x.noteId] === location).map(item => cardHtml(item, noteOptions(item, location))).join("")}</div>`;
   }).join("");
+  $("component-grid").innerHTML = componentCells + latticeZones(items, notes, noteOptions);
   document.querySelectorAll("[data-opponent-spy]").forEach(card => card.addEventListener("contextmenu", event => openQuestionMenu(event, Number(card.dataset.opponentSpy))));
   document.querySelectorAll("[data-accuse-city]").forEach(target => {
     target.addEventListener("contextmenu", event => {

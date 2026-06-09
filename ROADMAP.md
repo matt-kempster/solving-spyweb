@@ -30,8 +30,9 @@ UI backed by the same authoritative rules and AI modules.
   known but whose absolute board position is not. Browser-only bins are
   implemented; future work should support moving a whole component and drawing
   explicit relative-position edges.
-- [x] Add half-cell-lattice scratch placement so cards can snap to cell centers,
-  shared edges, and vertices to represent here-or-there uncertainty.
+- [x] Add an invisible half-cell lattice to the unlabeled scratch 3x3 so cards
+  can snap at full size to cell centers, shared edges, and vertices to represent
+  here-or-there uncertainty.
 - [x] Visualize event-derived relative-position edges, landmark anchors,
   nothing answers, and which senses each player has or has not asked about.
 - Visualize belief-derived components and possible ringleaders/hideouts.
