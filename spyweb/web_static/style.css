@@ -33,7 +33,7 @@ section { min-width: 0; }
 .lattice-edge.horizontal::before { width: 28px; height: 4px; }
 .lattice-vertex::before { width: 10px; height: 10px; border-radius: 50%; }
 .lattice-zone.drag-over::before { display: block; }
-.lattice-zone .spy-card { width: var(--cell-card-width); max-width: none; margin: 0; }
+.lattice-zone .spy-card { position: absolute; top: 50%; left: 50%; width: var(--cell-card-width); max-width: none; margin: 0; transform: translate(-50%, -50%); }
 .lattice-zone:has(.spy-card) { z-index: 6; }
 .landmark { position: absolute; z-index: 2; border: 1px dashed #8a7447; border-radius: 6px; padding: .15rem .35rem; color: #ffd47c; background: #292619; font-size: .75rem; font-weight: bold; pointer-events: none; }
 .landmark-car { top: calc(var(--drop-cell-height) / 2); left: 0; transform: translate(-55%, -50%); }
