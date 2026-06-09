@@ -374,6 +374,50 @@ function bindCardMarks() {
   });
 }
 
+function latticeCoordinate(size, index, boundary = false) {
+  const parts = [];
+  for (let i = 0; i < index; i++) parts.push(`var(${size})`, "var(--grid-gap)");
+  if (boundary) {
+    parts.push(`var(${size})`, "var(--grid-gap) / 2");
+  } else {
+    parts.push(`var(${size}) / 2`);
+  }
+  return `calc(${parts.join(" + ")})`;
+}
+
+function latticePosition(axis, row, col) {
+  const centerX = latticeCoordinate("--card-width", col);
+  const centerY = latticeCoordinate("--drop-cell-height", row);
+  const boundaryX = latticeCoordinate("--card-width", col, true);
+  const boundaryY = latticeCoordinate("--drop-cell-height", row, true);
+  if (axis === "v") return `left:${boundaryX};top:${centerY}`;
+  if (axis === "h") return `left:${centerX};top:${boundaryY}`;
+  return `left:${boundaryX};top:${boundaryY}`;
+}
+
+function latticeZones(items, notes, noteOptions) {
+  const zones = [];
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 2; col++) {
+      const location = `edge-v-${row}-${col}`;
+      zones.push(`<div class="lattice-zone lattice-edge vertical dropzone" data-location="${location}" style="${latticePosition("v", row, col)}">${items.filter(x => notes[x.noteId] === location).map(item => cardHtml(item, noteOptions(item, location))).join("")}</div>`);
+    }
+  }
+  for (let row = 0; row < 2; row++) {
+    for (let col = 0; col < 3; col++) {
+      const location = `edge-h-${row}-${col}`;
+      zones.push(`<div class="lattice-zone lattice-edge horizontal dropzone" data-location="${location}" style="${latticePosition("h", row, col)}">${items.filter(x => notes[x.noteId] === location).map(item => cardHtml(item, noteOptions(item, location))).join("")}</div>`);
+    }
+  }
+  for (let row = 0; row < 2; row++) {
+    for (let col = 0; col < 2; col++) {
+      const location = `vertex-${row}-${col}`;
+      zones.push(`<div class="lattice-zone lattice-vertex dropzone" data-location="${location}" style="${latticePosition("vertex", row, col)}">${items.filter(x => notes[x.noteId] === location).map(item => cardHtml(item, noteOptions(item, location))).join("")}</div>`);
+    }
+  }
+  return zones.join("");
+}
+
 function renderNotes() {
   const canReveal = state.winner !== null && state.roundReveal !== null;
   const toggle = $("toggle-board-reveal");
@@ -396,7 +440,7 @@ function renderNotes() {
     draggable: true,
     opponent: !item.hideout,
     markKey: item.hideout ? "opp-hideout" : `opp-${item.id}`,
-    accuseCity: item.hideout && location !== undefined && !String(location).startsWith("component-") ? Number(location) : undefined,
+    accuseCity: item.hideout && typeof location === "number" ? location : undefined,
   });
   $("notes-pool").innerHTML = `<div class="legend"><span class="sense look">L look</span><span class="sense hear">H hear</span><span class="sense point">P point</span></div>${items.filter(x => !notes[x.noteId]).map(item => cardHtml(item, noteOptions(item))).join("")}`;
   const landmarks = state.landmarks.map(item => `<div class="landmark landmark-${item.name.toLowerCase()}">${item.name}</div>`).join("");
@@ -404,7 +448,7 @@ function renderNotes() {
     const accusedLocation = accusationSelection.city === city.id ? "accused-location" : "";
     return `<div class="cell dropzone" data-city="${city.id}"><strong class="accuse-city-target ${accusedLocation}" data-accuse-city="${city.id}">${city.name}</strong>${items.filter(x => notes[x.noteId] === String(city.id)).map(item => cardHtml(item, noteOptions(item, city.id))).join("")}</div>`;
   }).join("");
-  $("notes-grid").innerHTML = landmarks + cities;
+  $("notes-grid").innerHTML = landmarks + cities + latticeZones(items, notes, noteOptions);
   $("component-grid").innerHTML = Array.from({length: COMPONENT_COUNT}, (_, index) => {
     const location = `component-${index}`;
     return `<div class="cell component-bin dropzone" data-location="${location}">${items.filter(x => notes[x.noteId] === location).map(item => cardHtml(item, noteOptions(item, location))).join("")}</div>`;
