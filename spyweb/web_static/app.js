@@ -360,6 +360,7 @@ function saveMarks(marks) { localStorage.setItem(marksKey(), JSON.stringify(mark
 function clearLocalAnnotations() {
   localStorage.removeItem(notesKey());
   localStorage.removeItem(marksKey());
+  document.querySelectorAll("[data-mark-key].marked").forEach(card => card.classList.remove("marked"));
 }
 
 function bindCardMarks() {
