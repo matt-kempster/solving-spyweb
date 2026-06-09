@@ -39,7 +39,7 @@ def test_projection_only_reveals_viewers_private_board() -> None:
     assert record["roundReveal"] is None
 
 
-def test_projection_reveals_both_answers_after_round_end() -> None:
+def test_projection_reveals_both_boards_after_round_end() -> None:
     campaign = new_campaign("Bird", BIRD_RULES, "Sea", SEA_RULES, seed=4)
     state = campaign.round
     target = state.players[1].board
@@ -54,11 +54,26 @@ def test_projection_reveals_both_answers_after_round_end() -> None:
             "player": 0,
             "ringleader": state.players[0].rules.spies[int(state.players[0].board.ringleader)].name,
             "hideout": state.players[0].rules.cities[int(state.players[0].board.hideout)].name,
+            "board": record["players"][0]["board"],
         },
         {
             "player": 1,
             "ringleader": state.players[1].rules.spies[int(state.players[1].board.ringleader)].name,
             "hideout": state.players[1].rules.cities[int(state.players[1].board.hideout)].name,
+            "board": [
+                {
+                    "id": int(city.id),
+                    "city": city.name,
+                    "occupant": (
+                        "HIDEOUT"
+                        if state.players[1].board.occupant_by_city[int(city.id)] is None
+                        else state.players[1].rules.spies[
+                            int(state.players[1].board.occupant_by_city[int(city.id)])
+                        ].name
+                    ),
+                }
+                for city in state.players[1].rules.cities
+            ],
         },
     ]
 

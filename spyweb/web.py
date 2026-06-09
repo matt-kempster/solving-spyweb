@@ -148,14 +148,31 @@ def _player_record(state: GameState, player_index: int, *, private: bool) -> dic
 def _round_reveal_record(state: GameState) -> list[JsonValue] | None:
     if state.winner is None:
         return None
-    return [
-        {
-            "player": player_index,
-            "ringleader": player.rules.spies[int(player.board.ringleader)].name,
-            "hideout": player.rules.cities[int(player.board.hideout)].name,
-        }
-        for player_index, player in enumerate(state.players)
-    ]
+    reveal: list[JsonValue] = []
+    for player_index, player in enumerate(state.players):
+        occupants = player.board.occupant_by_city
+        reveal.append(
+            {
+                "player": player_index,
+                "ringleader": player.rules.spies[int(player.board.ringleader)].name,
+                "hideout": player.rules.cities[int(player.board.hideout)].name,
+                "board": [
+                    {
+                        "id": int(city.id),
+                        "city": city.name,
+                        "occupant": (
+                            "HIDEOUT"
+                            if occupants[int(city.id)] is None
+                            else player.rules.spies[
+                                int(cast(SpyId, occupants[int(city.id)]))
+                            ].name
+                        ),
+                    }
+                    for city in player.rules.cities
+                ],
+            }
+        )
+    return reveal
 
 
 def _cards_record(rules: Rules) -> list[JsonValue]:

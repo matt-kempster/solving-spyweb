@@ -32,9 +32,12 @@
       <div id="deductions"></div>
     </section>
     <section class="opponent-column">
-      <h2>Opponent cards / notes</h2>
-      <p class="muted">Drag cards onto your notes board. Notes stay in this browser.</p>
-      <div class="notes-workspace">
+      <div class="notes-heading">
+        <h2>Opponent cards / notes</h2>
+        <button id="toggle-board-reveal" hidden>Reveal board</button>
+      </div>
+      <p id="notes-help" class="muted">Drag cards onto your notes board. Notes stay in this browser.</p>
+      <div id="notes-workspace" class="notes-workspace">
         <div>
           <div class="scratch-grid" id="notes-grid"></div>
           <div class="component-grid" id="component-grid"></div>
@@ -44,6 +47,7 @@
           <button id="clear-notes">Clear notes</button>
         </div>
       </div>
+      <div id="revealed-board" class="revealed-board" hidden></div>
     </section>
     <section class="player-column">
       <h2>Your private board</h2>

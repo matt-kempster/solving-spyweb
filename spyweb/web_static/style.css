@@ -10,6 +10,9 @@ main { display: grid; grid-template-columns: 320px var(--opponent-width) var(--b
 section { min-width: 0; }
 .analysis-column { width: 320px; }
 .opponent-column { width: var(--opponent-width); }
+.notes-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.notes-heading h2 { flex: 1; }
+.notes-heading button { flex: none; }
 .player-column { width: var(--board-width); }
 .analysis-column h2:first-child,
 .opponent-column h2:first-child,
@@ -31,6 +34,9 @@ section { min-width: 0; }
 .component-grid { display: grid; grid-template-columns: repeat(3, var(--card-width)); gap: var(--grid-gap); margin-top: .7rem; }
 #notes-pool { grid-template-columns: repeat(2, var(--card-width)); width: var(--notes-pool-width); min-height: var(--drop-cell-height); }
 .notes-tray button { margin-top: .7rem; }
+.revealed-board { display: grid; grid-template-columns: var(--card-width) var(--board-width); align-items: start; gap: var(--notes-gap); margin-top: 1.4rem; }
+.revealed-board[hidden] { display: none; }
+.revealed-secret > strong { display: block; margin-bottom: .4rem; color: #ffd47c; font-size: .85rem; }
 .component-bin { box-sizing: border-box; height: var(--drop-cell-height); min-height: 0; overflow: hidden; border-style: dashed; }
 .spy-card { position: relative; box-sizing: border-box; width: min(var(--card-width), 100%); min-height: 0; aspect-ratio: 204 / 200; margin-left: auto; margin-right: auto; border: 1px solid #587898; border-radius: 5px; padding: 1.4rem .5rem; background: #203248; text-align: center; }
 .spy-card.with-art { overflow: hidden; min-height: 0; padding: 0; background: #111821; }

@@ -18,7 +18,8 @@ UI backed by the same authoritative rules and AI modules.
 
 ## Round Flow
 
-- Reveal the whole board at the end of a round in the web UI.
+- [x] Add a reversible whole-board reveal at the end of a round in the web UI,
+  replacing the opponent notes view without clearing it.
 - Fix the web UI bug where reaching $1,000,000 does not immediately end the
   campaign.
 - Clear notes automatically when starting a new round.

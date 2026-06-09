@@ -7,6 +7,7 @@ const THEME_KEY = "spyweb-theme";
 const COMPONENT_COUNT = 9;
 const setupLayouts = {};
 const accusationSelection = {spy: null, city: null};
+let showingRevealedBoard = false;
 const transparentDragImage = new Image();
 transparentDragImage.src = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
 
@@ -35,6 +36,7 @@ async function loadArtManifest() {
 
 async function act(payload) {
   const resetsSetup = payload.type === "choose_faction" || payload.type === "new_game";
+  if (["choose_faction", "new_game", "next_round"].includes(payload.type)) showingRevealedBoard = false;
   if (payload.type === "new_game") clearLocalAnnotations();
   if (payload.type === "choose_faction" || payload.type === "new_game") {
     $("error").textContent = `Starting a new ${payload.faction || state.players[state.humanPlayer].faction} game…`;
@@ -373,6 +375,18 @@ function bindCardMarks() {
 }
 
 function renderNotes() {
+  const canReveal = state.winner !== null && state.roundReveal !== null;
+  const toggle = $("toggle-board-reveal");
+  toggle.hidden = !canReveal;
+  toggle.textContent = showingRevealedBoard ? "Back to notes" : "Reveal board";
+  $("notes-workspace").hidden = showingRevealedBoard;
+  $("notes-help").hidden = showingRevealedBoard;
+  $("revealed-board").hidden = !showingRevealedBoard;
+  if (showingRevealedBoard) {
+    renderRevealedBoard();
+    return;
+  }
+
   const notes = savedNotes();
   const items = [
     ...state.opponentCards.map(c => ({...c, noteId: `spy-${c.id}`})),
@@ -425,6 +439,20 @@ function renderNotes() {
   bindCardMarks();
 }
 
+function renderRevealedBoard() {
+  const opponent = 1 - state.viewer;
+  const reveal = state.roundReveal.find(item => item.player === opponent);
+  const cardsByName = Object.fromEntries(state.opponentCards.map(card => [card.name, card]));
+  const ringleader = cardsByName[reveal.ringleader];
+  const board = reveal.board.map(cell => {
+    const card = cell.occupant === "HIDEOUT" ? cardHtml({hideout: true}) : cardHtml(cardsByName[cell.occupant]);
+    return `<div class="cell"><strong>${cell.city}</strong>${card}</div>`;
+  }).join("");
+  $("revealed-board").innerHTML = `
+    <div class="revealed-secret"><strong>Ringleader: ${reveal.ringleader}</strong>${cardHtml(ringleader)}</div>
+    <div class="grid">${board}</div>`;
+}
+
 $("viewer").addEventListener("change", load);
 $("human-faction").addEventListener("change", () => act({type: "choose_faction", faction: $("human-faction").value}));
 $("ai-strategy").addEventListener("change", () => act({type: "set_ai_strategy", strategy: $("ai-strategy").value}));
@@ -438,6 +466,10 @@ $("theme").addEventListener("change", () => {
 $("show-ai-knowledge").addEventListener("change", () => {
   localStorage.setItem(AI_KNOWLEDGE_KEY, $("show-ai-knowledge").checked);
   render();
+});
+$("toggle-board-reveal").addEventListener("click", () => {
+  showingRevealedBoard = !showingRevealedBoard;
+  renderNotes();
 });
 $("clear-notes").addEventListener("click", () => { localStorage.removeItem(notesKey()); renderNotes(); });
 document.addEventListener("click", event => {
